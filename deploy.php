@@ -5,9 +5,8 @@ WP_CLI::add_command( 'deploy', 'WP_Deploy_Command' );
 /**
  * deploys
  *
- * @package wp-cli
- * @subpackage commands/community
- * @author Duncan Brown
+ * @package wp-deploy-flow
+ * @author Arnaud Sellenet
  */
 class WP_Deploy_Command extends WP_CLI_Command {
   protected static $_env;
