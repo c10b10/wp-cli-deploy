@@ -1,5 +1,4 @@
 <?php
-
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Command' );
 
 /**
@@ -22,23 +21,20 @@ class WP_Deploy_Command extends WP_CLI_Command {
       WP_CLI::error("$env environment is locked, you cannot push to it");
       return;
     }
-    $com = "wp migrate to $path $url dump.sql";
-    echo $com."\n";
-    WP_CLI::launch($com);
-    $com = 'sed -i "" -e "1s/^/SET NAMES UTF8;/" dump.sql';
-    WP_CLI::launch($com);
-    $command = "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path";
-    echo $command."\n";
-    WP_CLI::launch($command);
 
-    $command = "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"";
-    echo $command."\n";
-    WP_CLI::launch($command);
+    $commands = array(
+      "wp migrate to $path $url dump.sql",
+      'sed -i "" -e "1s/^/SET NAMES UTF8;/" dump.sql',
+      "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path",
+      "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"",
+      "rm dump.sql",
+      "git push $env"
+    );
 
-    // $com = "cat dump.sql | mysql --host=localhost --user=$db_user --password=$db_password $db_name";
-//    WP_CLI::launch($com);
-    WP_CLI::launch("rm dump.sql");
-    WP_CLI::launch("git push $env");
+    foreach($commands as $command) {
+      WP_CLI::line($command);
+      WP_CLI::launch($command);
+    }
 
     if($remove_admin === true) {
       $com = "ssh $ssh_user@$ssh_host \"cd $path;rm -Rf wp-login.php\"";
@@ -52,9 +48,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
       $local_path = $dir['basedir'];
 
       WP_CLI::line( sprintf( 'Running rsync from %s to %s:%s', $local_path, $ssh_host, $remote_path ) );
-      $com = sprintf( "rsync -avz -e ssh %s %s@%s:%s  --exclude 'cache' --exclude '_wpremote_backups'", $local_path, $ssh_user, $ssh_host, $remote_path );
-      WP_CLI::line($com);
-      WP_CLI::launch( $com );
+      $command = sprintf( "rsync -avz -e ssh %s %s@%s:%s  --exclude 'cache' --exclude '_wpremote_backups'", $local_path, $ssh_user, $ssh_host, $remote_path );
+      WP_CLI::line($command);
+      WP_CLI::launch($command);
     }
   }
 
