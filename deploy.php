@@ -23,17 +23,18 @@ class WP_Deploy_Command extends WP_CLI_Command {
     }
 
     $commands = array(
-      "wp migrate to $path $url dump.sql",
-      'sed -i "" -e "1s/^/SET NAMES UTF8;/" dump.sql',
-      "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path",
-      "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"",
-      "rm dump.sql",
-      "git push $env"
+      array("wp migrate to $path $url dump.sql", true),
+      array('sed -i "" -e "1s/^/SET NAMES UTF8;/" dump.sql', false),
+      array("scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true),
+      array("ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"", false),
+      array("rm dump.sql", true),
+      array("git push $env", true)
     );
 
-    foreach($commands as $command) {
+    foreach($commands as $commandinfo) {
+      list($command, $exit_on_error) = each($commandinfo);
       WP_CLI::line($command);
-      WP_CLI::launch($command);
+      WP_CLI::launch($command, $exit_on_error);
     }
 
     if($remove_admin === true) {
