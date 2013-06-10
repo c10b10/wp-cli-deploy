@@ -28,7 +28,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
       array("scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true),
       array("ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"", false),
       array("rm dump.sql", true),
-      array("git push $env", true)
+//      array("git push $env", true)
     );
 
     foreach($commands as $commandInfo) {
@@ -43,9 +43,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
       WP_CLI::launch($com);
     }
 
-    self::push_uploads($args);
+    self::push_files($args);
   }
-  public function push_uploads( $args = array() )
+  public function push_files( $args = array() )
   {
     extract(self::_prepareAndExtract($args, false));
     if($locked === true) {
@@ -54,11 +54,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
     }
     if($ssh_host) {
       $dir = wp_upload_dir();
-      $remote_path = $path.'/wp-content';
-      $local_path = $dir['basedir'];
+      $remote_path = $path . '/';
+      $local_path = ABSPATH;
 
       WP_CLI::line( sprintf( 'Running rsync from %s to %s:%s', $local_path, $ssh_host, $remote_path ) );
-      $command = sprintf( "rsync -avz -e ssh %s %s@%s:%s  --exclude 'cache' --exclude '_wpremote_backups'", $local_path, $ssh_user, $ssh_host, $remote_path );
+      $command = sprintf( "rsync -avz -e ssh %s %s@%s:%s --exclude '.git' --exclude 'wp-content/cache' --exclude 'wp-content/_wpremote_backups' --exclude 'wp-config.php'", $local_path, $ssh_user, $ssh_host, $remote_path );
       WP_CLI::line($command);
       WP_CLI::launch($command);
     }
@@ -75,14 +75,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
     $wpdb = new Wpdb($db_user, $db_password, $db_name, $host);
     $path = ABSPATH;
     $url = get_bloginfo( 'url' );
-    $dist_path  = constant(self::config_constant('path'));
+    $dist_path  = constant(self::config_constant('path')) . '/';
     $command = "ssh $ssh_user@$ssh_host  \"cd $dist_path;wp migrate to $path $url dump.sql\" && scp $ssh_user@$ssh_host:$dist_path/dump.sql .";
     WP_CLI::launch($command);
     WP_CLI::launch("wp db import dump.sql");
-
+    self::pull_files($args);
   }
-  public function pull_uploads($args = array())
+  public function pull_files($args = array())
   {
+    WP_CLI::line('pulling files');
     extract(self::_prepareAndExtract($args, false));
 
     $const = strtoupper(ENVIRONMENT).'_LOCKED';
@@ -93,12 +94,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
     if($ssh_host) {
       $dir = wp_upload_dir();
-      $dist_path  = constant(self::config_constant('path'));
-      $remote_path = $dist_path.'/wp-content/uploads/';
-      $local_path = $dir['basedir'];
+      $dist_path  = constant(self::config_constant('path')) . '/';
+      $remote_path = $dist_path;
+      $local_path = ABSPATH;
 
       WP_CLI::line( sprintf( 'Running rsync from %s:%s to %s', $ssh_host, $remote_path, $local_path ) );
-      $com = sprintf( "rsync -avz -e ssh  %s@%s:%s %s  --delete --exclude 'cache' --exclude '_wpremote_backups'", $ssh_user, $ssh_host, $remote_path, $local_path );
+      $com = sprintf( "rsync -avz -e ssh  %s@%s:%s %s  --delete --exclude '.git' --exclude 'wp-content/cache' --exclude 'wp-content/_wpremote_backups' --exclude 'wp-config.php'", $ssh_user, $ssh_host, $remote_path, $local_path );
       WP_CLI::line( $com );
       WP_CLI::launch( $com );
     }
