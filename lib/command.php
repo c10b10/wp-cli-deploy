@@ -30,7 +30,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
       array("rm dump.sql", true),
 //      array("git push $env", true)
     );
-
     foreach($commands as $commandInfo) {
       list($command, $exit_on_error) = $commandInfo;
       WP_CLI::line($command);
@@ -44,6 +43,14 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
     }
 
     self::push_files($args);
+    $const = strtoupper($env).'_POST_SCRIPT';
+    if(defined($const)) {
+      $subcommand = constant($const);
+      $command = "ssh $ssh_user@$ssh_host \"$subcommand\"";
+      WP_CLI::line($command);
+      WP_CLI::launch($command);
+
+    }
   }
   public function push_files( $args = array() )
   {
