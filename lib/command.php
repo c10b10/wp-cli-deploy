@@ -23,17 +23,26 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			return;
 		}
 
+		$siteurl = get_option( 'siteurl' );
+		$siteurl = self::_trim_url( $siteurl );
+
 		$commands = array(
-			array( "wp migrate to $path $url dump.sql", true ),
-			array( 'sed -i "" -e "1s/^/SET NAMES UTF8;/" dump.sql', false ),
+			array( 'wp db export db_bk.sql', true ),
+
+			array( "wp search-replace $siteurl $url", true ),
+			array( 'wp db dump dump.sql', true ),
+
+			array( 'wp db import db_bk.sql', true ),
+			array( 'rm db_bk.sql', true ),
+
 			array( "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path;cat dump.sql | mysql --host=$db_host --user=$db_user --password=$db_password $db_name; rm dump.sql\"", false ),
+			array( "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
+			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < dump.sql; rm dump.sql\"", true ),
 			array( 'rm dump.sql', true ),
-			//      array("git push $env", true)
 		);
 
-		foreach ( $commands as $commandInfo ) {
-			list( $command, $exit_on_error ) = $commandInfo;
+		foreach ( $commands as $command_info ) {
+			list( $command, $exit_on_error ) = $command_info;
 			WP_CLI::line( $command );
 			WP_CLI::launch( $command, $exit_on_error );
 		}
@@ -166,6 +175,24 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			$out[$postfix] = defined( self::config_constant( $postfix ) ) ? constant( self::config_constant( $postfix ) ) : null;
 		}
 		return $out;
+	}
+
+	private static function _trim_url( $url ) {
+
+		/** In case scheme relative URI is passed, e.g., //www.google.com/ */
+		$url = trim( $url, '/' );
+
+		/** If scheme not included, prepend it */
+		if ( ! preg_match( '#^http(s)?://#', $url ) ) {
+			$url = 'http://' . $url;
+		}
+
+		$url_parts = parse_url( $url );
+
+		/** Remove www. */
+		$domain = preg_replace( '/^www\./', '', $url_parts['host'] );
+
+		return $domain;
 	}
 
 	/**
