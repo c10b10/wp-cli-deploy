@@ -12,7 +12,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	/**
 	 * Push local to remote
 	 *
-	 * @synopsis <environment> --mode=<mode>
+	 * @synopsis <environment> --what=<db,uploads>
 	 */
 	public function push( $args, $assoc_args ) {
 
@@ -24,14 +24,14 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 
 		/**
-		 * Mode accepts comma separated modes
+		 * What accepts comma separated values
 		 */
-		$modes = explode( ',', $assoc_args['mode'] );
-		foreach ( $modes as $mode ) {
-			if ( method_exists( __CLASS__, "_push_$mode" ) )
-				call_user_func( "self::_push_$mode", $settings );
+		$what = explode( ',', $assoc_args['what'] );
+		foreach ( $what as $item ) {
+			if ( method_exists( __CLASS__, "_push_$item" ) )
+				call_user_func( "self::_push_$item", $settings );
 			else
-				WP_CLI::line( "No such mode: $mode" );
+				WP_CLI::line( "Don't know how to deploy: $item" );
 		}
 
 		/* if ( $remove_admin === true ) { */
