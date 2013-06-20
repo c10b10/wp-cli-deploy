@@ -28,7 +28,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$commands = array(
 			array( 'wp db export db_bk.sql', true ),
 			array( "wp search-replace $siteurl $url", true ),
-			array( 'wp search-replace ' . untrailingslashit( $path ) . ' ' . untrailingslashit( ABSPATH ), true ),
+			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ),
 			array( 'wp db dump dump.sql', true ),
 
 			array( 'wp db import db_bk.sql', true ),
