@@ -67,5 +67,6 @@ subcommands
 
 * The search replace operation on the db is ran using the `--network` flag,
   which means all tables will have their url and paths updated.
+* Removed removal of sql dump from server.
 
 See the issue tracker for more info about what's planned.
