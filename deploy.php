@@ -278,16 +278,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		return $domain;
 	}
-
-	/**
-	 * Help function for this command
-	 */
-	public static function help() {
-		WP_CLI::line( <<<EOB
-
-EOB
-  );
-  }
 }
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
