@@ -1,5 +1,4 @@
 <?php
-WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
 
 /**
  * deploys
@@ -204,3 +203,5 @@ EOB
   );
   }
 }
+
+WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
