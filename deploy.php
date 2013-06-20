@@ -281,3 +281,4 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 }
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
+WP_CLI::add_man_dir( __DIR__ . '/man', __DIR__ . '/man-src' );
