@@ -50,7 +50,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 
 		/**
-		 * What accepts comma separated values
+		 * 'what' accepts comma separated values.
 		 */
 		$what = explode( ',', $assoc_args['what'] );
 		foreach ( $what as $item ) {

@@ -16,26 +16,27 @@ http://demental.info/blog/2013/04/09/a-decent-wordpress-deploy-workflow/
 Currently, this fork only supports one subcommand: `wp push <environment>
 --what<what>`.
 
-* <environment>:
+* `<environment>`:
 
 	The name of the environment. This is the prefix of the constants defined in
 wp-config.
 
-* `--what`=<what>:
+* `--what=<what>`:
 
 	What needs to be pushed. Suports multiple comma sepparated values. This
 determines the order of execution for deployments. Valid options are: 'db'
 (deploys the databse with the url and paths replaced) and 'uploads' (deploys
 the uploads folder).
 
-__EXAMPLES__
+__Example__: Deploy database and uploads folder
 
-	# Deploy database and uploads folder
-	wp deploy staging --what=db,uploads
+```bash
+$ wp deploy staging --what=db,uploads
+```
 
 ## List of wp-config.php constant
 
-%ENV% must is the environment that needs to be specified in the deploy
+`%ENV%` must is the environment that needs to be specified in the deploy
 subcommands
 
 * `%ENV%_URL`: Required. The URL of the staging server. This will be replaced in the
