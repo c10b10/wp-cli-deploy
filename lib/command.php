@@ -23,13 +23,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			return;
 		}
 
-		$siteurl = get_option( 'siteurl' );
-		$siteurl = self::_trim_url( $siteurl );
+		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 
 		$commands = array(
 			array( 'wp db export db_bk.sql', true ),
-
 			array( "wp search-replace $siteurl $url", true ),
+			array( 'wp search-replace ' . untrailingslashit( $path ) . ' ' . untrailingslashit( ABSPATH ), true ),
 			array( 'wp db dump dump.sql', true ),
 
 			array( 'wp db import db_bk.sql', true ),
