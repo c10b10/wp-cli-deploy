@@ -23,13 +23,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			return;
 		}
 
-		/** 
+		/**
 		 * Mode accepts comma separated modes
 		 */
 		$modes = explode( ',', $assoc_args['mode'] );
 		foreach ( $modes as $mode ) {
 			if ( method_exists( __CLASS__, "_push_$mode" ) )
 				call_user_func( "self::_push_$mode", $settings );
+			else
+				WP_CLI::line( "No such mode: $mode" );
 		}
 
 		/* if ( $remove_admin === true ) { */
@@ -60,23 +62,22 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 
+		/** TODO: Add command description here.. */
 		$commands = array(
 			array( "wp db export $backup_name.sql", true ),
-			array( "wp search-replace $siteurl $url", true ),
-			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ),
-			array( "wp db dump $dump_name.sql", true ),
+			/* array( "wp search-replace $siteurl $url", true ), */
+			/* array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ), */
+			/* array( "wp db dump $dump_name.sql", true ), */
 
 			array( "wp db import $backup_name.sql", true ),
 			array( "rm $backup_name.sql", true ),
 
-			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"", true ),
-			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
+			/* array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ), */
+			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"" ),
+			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ),
 			array( "rm $dump_name.sql", true ),
 		);
 
-		/** TODO: If has command description, print that with line. */
 		foreach ( $commands as $command_info ) {
 			list( $command, $exit_on_error ) = $command_info;
 			WP_CLI::line( $command );
@@ -84,24 +85,48 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	public function push_files( $args = array() ) {
-		extract( self::_prepare_and_extract( $args ) );
+	private function _push_uploads( $settings ) {
 
-		if ( $locked === true ) {
-			WP_CLI::error( "$env environment is locked, you cannot push to it" );
-			return;
-		}
+		$uploads_dir = wp_upload_dir();
 
-		if ( $ssh_host ) {
-			$dir = wp_upload_dir();
-			$remote_path = $path . '/';
-			$local_path = ABSPATH;
+		self::_rsync_files( $uploads_dir['basedir'], $settings );
+		WP_CLI::success( "Synced the '{$uploads_dir['basedir']} to server." );
+	}
 
-			WP_CLI::line( sprintf( 'Running rsync from %s to %s:%s', $local_path, $ssh_host, $remote_path ) );
-			$command = sprintf( "rsync -avz -e ssh %s %s@%s:%s --exclude '.git' --exclude 'wp-content/cache' --exclude 'wp-content/_wpremote_backups' --exclude 'wp-config.php'", $local_path, $ssh_user, $ssh_host, $remote_path );
-			WP_CLI::line( $command );
-			WP_CLI::launch( $command );
-		}
+	private function _rsync_files( $source_path, $settings ) {
+
+		extract( $settings );
+		$remote_path = $path . '/';
+		/** TODO Manage by flag. */
+		$exclude = array(
+			'.git',
+			'cache',
+		);
+
+		WP_CLI::line( sprintf(
+			'Running rsync from %s to %s:%s\n',
+			$source_path,
+			$ssh_host,
+			$remote_path
+		) );
+
+		/** Exclude files from rsync. */
+		$exclude = '--exclude '
+			. implode(
+				' --exclude ',
+				array_map( 'escapeshellarg', $exclude )
+			);
+		$command = sprintf(
+			'rsync -avz -e ssh %s %s@%s:%s %s',
+			$source_path,
+			$ssh_user,
+			$ssh_host,
+			$remote_path,
+			$exclude
+		);
+
+		WP_CLI::line( $command );
+		WP_CLI::launch( $command );
 	}
 
 	public function pull( $args = array() ) {
