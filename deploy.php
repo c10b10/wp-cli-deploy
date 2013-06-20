@@ -12,46 +12,33 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	/**
 	 * Push local to remote
 	 *
-	 * @synopsis <environment>
+	 * @synopsis <environment> --mode=<mode>
 	 */
-	public function push( $args = array() ) {
+	public function push( $args, $assoc_args ) {
 
-		extract( self::_prepare_and_extract( $args ) );
-		if ( $locked === true ) {
-			WP_CLI::error( "$env environment is locked, you cannot push to it" );
+		$settings = self::_prepare_and_extract( $args );
+
+		if ( $settings['locked'] === true ) {
+			WP_CLI::error( "$env environment is locked, you cannot push to it." );
 			return;
 		}
 
-		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
-
-		$commands = array(
-			array( 'wp db export db_bk.sql', true ),
-			array( "wp search-replace $siteurl $url", true ),
-			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ),
-			array( 'wp db dump dump.sql', true ),
-
-			array( 'wp db import db_bk.sql', true ),
-			array( 'rm db_bk.sql', true ),
-
-			array( "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "scp dump.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < dump.sql; rm dump.sql\"", true ),
-			array( 'rm dump.sql', true ),
-		);
-
-		foreach ( $commands as $command_info ) {
-			list( $command, $exit_on_error ) = $command_info;
-			WP_CLI::line( $command );
-			WP_CLI::launch( $command, $exit_on_error );
+		/** 
+		 * Mode accepts comma separated modes
+		 */
+		$modes = explode( ',', $assoc_args['mode'] );
+		foreach ( $modes as $mode ) {
+			if ( method_exists( __CLASS__, "_push_$mode" ) )
+				call_user_func( "self::_push_$mode", $settings );
 		}
 
-		if ( $remove_admin === true ) {
-			$com = "ssh $ssh_user@$ssh_host \"cd $path;rm -Rf wp-login.php\"";
-			WP_CLI::line( $com );
-			WP_CLI::launch( $com );
-		}
+		/* if ( $remove_admin === true ) { */
+		/* 	$com = "ssh $ssh_user@$ssh_host \"cd $path;rm -Rf wp-login.php\""; */
+		/* 	WP_CLI::line( $com ); */
+		/* 	WP_CLI::launch( $com ); */
+		/* } */
 
-		self::push_files( $args );
+
 		$const = strtoupper( $env ) . '_POST_SCRIPT';
 		if ( defined( $const ) ) {
 			$subcommand = constant( $const );
@@ -60,6 +47,41 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			WP_CLI::launch( $command );
 		}
 
+	}
+
+	private static function _push_db( $settings ) {
+
+		extract( $settings );
+		$env = self::$_env;
+		$backup_name = time() . "_$env";
+		$dump_name = date( 'Y_m_d-H_i' ) . "_$env";
+
+		WP_CLI::line( "Pushing the db to $env ..." );
+
+		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
+
+		$commands = array(
+			array( "wp db export $backup_name.sql", true ),
+			array( "wp search-replace $siteurl $url", true ),
+			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ),
+			array( "wp db dump $dump_name.sql", true ),
+
+			array( "wp db import $backup_name.sql", true ),
+			array( "rm $backup_name.sql", true ),
+
+			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
+			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
+			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"", true ),
+			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
+			array( "rm $dump_name.sql", true ),
+		);
+
+		/** TODO: If has command description, print that with line. */
+		foreach ( $commands as $command_info ) {
+			list( $command, $exit_on_error ) = $command_info;
+			WP_CLI::line( $command );
+			WP_CLI::launch( $command, $exit_on_error );
+		}
 	}
 
 	public function push_files( $args = array() ) {
@@ -158,6 +180,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	protected static function config_constant( $postfix ) {
+
 		return strtoupper( self::$_env.'_'.$postfix );
 	}
 
