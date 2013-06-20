@@ -65,16 +65,16 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** TODO: Add command description here.. */
 		$commands = array(
 			array( "wp db export $backup_name.sql", true ),
-			/* array( "wp search-replace $siteurl $url", true ), */
-			/* array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ), */
-			/* array( "wp db dump $dump_name.sql", true ), */
+			array( "wp search-replace $siteurl $url", true ),
+			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $path ), true ),
+			array( "wp db dump $dump_name.sql", true ),
 
 			array( "wp db import $backup_name.sql", true ),
 			array( "rm $backup_name.sql", true ),
 
-			/* array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ), */
+			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
 			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"" ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ),
+			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
 			array( "rm $dump_name.sql", true ),
 		);
 
