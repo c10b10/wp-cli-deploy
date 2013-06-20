@@ -16,7 +16,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 */
 	public function push( $args = array() ) {
 
-		extract( self::_prepare_and_extract( $args, false ) );
+		extract( self::_prepare_and_extract( $args ) );
 		if ( $locked === true ) {
 			WP_CLI::error( "$env environment is locked, you cannot push to it" );
 			return;
@@ -63,7 +63,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	public function push_files( $args = array() ) {
-		extract( self::_prepare_and_extract( $args, false ) );
+		extract( self::_prepare_and_extract( $args ) );
 
 		if ( $locked === true ) {
 			WP_CLI::error( "$env environment is locked, you cannot push to it" );
@@ -83,7 +83,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	public function pull( $args = array() ) {
-		extract( self::_prepare_and_extract( $args, false ) );
+		extract( self::_prepare_and_extract( $args ) );
 
 		$const = strtoupper( ENVIRONMENT ) . '_LOCKED';
 		if ( constant( $const ) === true ) {
@@ -104,7 +104,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	public function pull_files( $args = array() ) {
 
 		WP_CLI::line( 'pulling files' );
-		extract( self::_prepare_and_extract( $args, false ) );
+		extract( self::_prepare_and_extract( $args ) );
 
 		$const = strtoupper( ENVIRONMENT ) . '_LOCKED';
 		if ( constant( $const ) === true ) {
@@ -126,7 +126,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	}
 
-	public static function _prepare_and_extract( $args, $tunnel = true ) {
+	public static function _prepare_and_extract( $args ) {
 		$out = array();
 		self::$_env = $args[0];
 		$errors = self::_validate_config();
@@ -142,12 +142,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_host'] = escapeshellarg( $out['db_host'] );
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
 
-		if ( $out['ssh_db_host'] && $tunnel ) {
-			$com = sprintf( 'ssh -f -L 3310:127.0.01:%s %s@%s sleep 600 >> logfile', ( $out['db_port'] ? $out['db_port'] : 3306 ), $out['ssh_db_user'], escapeshellarg( $out['ssh_db_host'] ) );
-			shell_exec( $com );
-			$out['db_host'] = '127.0.0.1';
-			$out['db_port'] = '3310';
-		}
 		return $out;
 	}
 
