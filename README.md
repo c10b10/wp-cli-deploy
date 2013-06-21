@@ -41,6 +41,8 @@ subcommands
 
 * `%ENV%_URL`: __Required__. The URL of the staging server. This will be replaced in the
   deployed db.
+* `%ENV%_PATH`: __Required__. The PATH of the app on the staging server. This will be replaced in the
+  deployed db.
 * `%ENV%_SSH_HOST`: __Required__. The SSH host for the server where the uploads will be
   deployed.
 * `%ENV%_SSH_USER`: __Required__. The SSH user for the server where the uploads will be
@@ -51,8 +53,8 @@ subcommands
 `%ENV%_SSH_HOST` will be used.
 * `%ENV%_SSH_DB_USER`: This will be used for the db deployment. If missing,
 `%ENV%_SSH_USER` will be used.
-* `%ENV%_SSH_DB_HOST`: This will be used for the db deployment. If missing,
-`%ENV%_SSH_HOST` will be used.
+* `%ENV%_SSH_DB_PATH`: This will be the location where the db file will be
+  deployed. If missing, `%ENV%_SSH_PATH` will be used.
 * `%ENV%_DB_HOST`: __Required__. The db host for the server where db will be deployed.
 * `%ENV%_DB_USER`: __Required__. The mysql username for the server where the db will be
   deployed.
