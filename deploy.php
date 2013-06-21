@@ -88,27 +88,49 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		WP_CLI::line( "Pushing the db to $env ..." );
 
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
+		$abspath = untrailingslashit( ABSPATH );
+		$ssh_path = untrailingslashit( $ssh_path );
 
 		/** TODO: Add command description here.. */
 		$commands = array(
-			array( "wp db export $backup_name.sql", true ),
-			array( "wp search-replace $siteurl $url", true ),
-			array( 'wp search-replace ' . untrailingslashit( ABSPATH ) . ' ' . untrailingslashit( $ssh_path ), true ),
-			array( "wp db dump $dump_name.sql", true ),
+			array( "wp db export $backup_name.sql", true, 'Exporting local backup.' ),
+			array( "wp search-replace $siteurl $url", true, "Replacing $siteurl with $url on local db." ),
+			array( "wp search-replace $abspath $ssh_path", true, "Replacing $siteurl with with $ssh_path on local db." ),
+			array( "wp db dump $dump_name.sql", true, 'Dumping the ready to deploy db.' ),
 
-			array( "wp db import $backup_name.sql", true ),
-			array( "rm $backup_name.sql", true ),
+			array( "wp db import $backup_name.sql", true, 'Importing local backup.' ),
+			array( "rm $backup_name.sql", 'Removing backup file.' ),
 
-			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"" ),
+			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true, 'Copied the ready to deploy db to server.' ),
+			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; sudo mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"", 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
 			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
-			array( "rm $dump_name.sql", true ),
+			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
 
 		foreach ( $commands as $command_info ) {
-			list( $command, $exit_on_error ) = $command_info;
-			WP_CLI::line( $command );
-			WP_CLI::launch( $command, $exit_on_error );
+			WP_CLI::line( $command_info[0] );
+			self::_verbose_launch( $command_info );
+		}
+	}
+
+	private function _verbose_launch( $command_info ) {
+
+		$command = array_shift( $command_info );
+		$exit_on_error = is_bool( $command_info[0] ) && $command_info[0];
+		$messages = array_filter( $command_info, function( $v ) { return is_string( $v ); } );
+
+		$code = WP_CLI::launch( $command, $exit_on_error );
+
+		if ( empty( $messages ) )
+			return;
+
+		$success = array_shift( $messages );
+		$fail = ! empty( $messages ) ? array_shift( $messages ) : $success;
+
+		if ( $code ) {
+			WP_CLI::warning( $fail );
+		} else {
+			WP_CLI::success( $success );
 		}
 	}
 
