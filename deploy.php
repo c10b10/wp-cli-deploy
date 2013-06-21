@@ -39,11 +39,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	/**
 	 * Push local to remote
 	 *
-	 * @synopsis <environment> --what=<what>
+	 * @synopsis <environment> --what=<what> [--upload=<upload>]
 	 */
 	public function push( $args, $assoc_args ) {
 
-		$settings = self::_get_sanitized_args( $args );
+		$settings = self::_get_sanitized_args( $args, $assoc_args );
 
 		if ( $settings['locked'] === true ) {
 			WP_CLI::error( "$env environment is locked, you cannot push to it." );
@@ -67,7 +67,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/* 	WP_CLI::line( $com ); */
 		/* 	WP_CLI::launch( $com ); */
 		/* } */
-
 
 		$const = strtoupper( $env ) . '_POST_SCRIPT';
 		if ( defined( $const ) ) {
@@ -138,9 +137,39 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	private function _push_uploads( $settings ) {
 
 		$uploads_dir = wp_upload_dir();
+		$types = array( 'rsync', 'scp' );
+		$type = in_array( $settings['upload_type'], $types ) ? $settings['upload_type'] : array_pop( $types );
 
-		self::_rsync_files( $uploads_dir['basedir'], $settings );
+		call_user_func_array( "self::_{$type}_files", array( $uploads_dir['basedir'], $settings ) );
 		WP_CLI::success( "Synced the '{$uploads_dir['basedir']} to server." );
+	}
+
+	private function _scp_files( $source_path, $settings ) {
+
+		extract( $settings );
+		$remote_path = $ssh_path . '/';
+		$path_info = pathinfo( $source_path );
+		$dirpath = $path_info['dirname'];
+		$basename = $path_info['basename'];
+
+		$commands = array(
+			array( "pushd $dirpath" ),
+			array( 'ls' ),
+			array( "tar -zcfv $basename.tar.gz $basename", true ),
+			array( 'popd' ),
+			array( "mv $dirpath/$basename.tar.gz ." ),
+			array(
+				"scp $source_path.tar.gz $ssh_user@$ssh_host:$ssh_path",
+				"Running scp to copy $basename.tar.gz to $ssh_user@$ssh_host:$remote_path.",
+				"Failed copying $basename.tar.gz to server."
+			),
+		);
+
+		/** proc_open accepts a current working directory for the command to be run */
+		foreach ( $commands as $command_info ) {
+			WP_CLI::line( $command_info[0] );
+			self::_verbose_launch( $command_info );
+		}
 	}
 
 	private function _rsync_files( $source_path, $settings ) {
@@ -226,7 +255,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	}
 
-	private static function _get_sanitized_args( $args ) {
+	private static function _get_sanitized_args( $args, $assoc_args = null ) {
 
 		self::$_env = $args[0];
 
@@ -243,6 +272,10 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_user'] = escapeshellarg( $out['db_user'] );
 		$out['db_host'] = escapeshellarg( $out['db_host'] );
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
+
+		/** Use different upload methods. */
+		$upload_types = array( 'scp', 'rsync' );
+		$out['upload_type'] = isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], $upload_types ) ? $assoc_args['upload'] : array_shift( $upload_types );
 
 		return $out;
 	}
