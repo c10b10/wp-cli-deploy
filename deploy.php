@@ -20,6 +20,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 */
 	static $constants = array(
 		'url' => true,
+		'path' => true,
 		'ssh_host' => true,
 		'ssh_user' => true,
 		'ssh_path' => true,
@@ -89,13 +90,13 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 		$abspath = untrailingslashit( ABSPATH );
-		$ssh_path = untrailingslashit( $ssh_path );
+		$path = untrailingslashit( $path );
 
 		/** TODO: Add command description here.. */
 		$commands = array(
 			array( "wp db export $backup_name.sql", true, 'Exporting local backup.' ),
 			array( "wp search-replace $siteurl $url", true, "Replacing $siteurl with $url on local db." ),
-			array( "wp search-replace $abspath $ssh_path", true, "Replacing $siteurl with with $ssh_path on local db." ),
+			array( "wp search-replace $abspath $path", true, "Replacing $siteurl with with $path on local db." ),
 			array( "wp db dump $dump_name.sql", true, 'Dumping the ready to deploy db.' ),
 
 			array( "wp db import $backup_name.sql", true, 'Importing local backup.' ),
