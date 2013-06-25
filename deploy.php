@@ -8,7 +8,7 @@
  */
 class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
-	protected static $_env;
+	private static $_env;
 
 	/**
 	 * List of unprefixed constants that need to be defined in wp-config.php.
@@ -34,6 +34,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		'db_password' => true,
 		'locked' => false,
 		'remove_admin' => false,
+	);
+
+	/** First true-valued key is the default. */
+	private static $_upload_types = array(
+		'scp' => true,
+		'rsync' => false
 	);
 
 	/**
@@ -107,19 +113,35 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
 
+		self::_run_commands( $commands );
+	}
+
+	private static function _run_commands( $commands ) {
+
+		$commands = is_string( $commands ) ? array( $commands ) : $commands;
+
 		foreach ( $commands as $command_info ) {
-			WP_CLI::line( $command_info[0] );
+			$command = is_array( $command_info[0] ) ? $command_info[0][0] : $command_info[0];
+			WP_CLI::line( "\n$ $command" );
 			self::_verbose_launch( $command_info );
 		}
 	}
 
 	private function _verbose_launch( $command_info ) {
 
+		$cwd = null;
 		$command = array_shift( $command_info );
+		if ( is_array( $command ) ) {
+			$cwd = $command[1];
+			$command = $command[0];
+		}
 		$exit_on_error = is_bool( $command_info[0] ) && $command_info[0];
 		$messages = array_filter( $command_info, function( $v ) { return is_string( $v ); } );
 
-		$code = WP_CLI::launch( $command, $exit_on_error );
+		$code = proc_close( proc_open( $command, array( STDIN, STDOUT, STDERR ), $pipes, $cwd ) );
+
+		if ( $code && $exit_on_error )
+			exit( $code );
 
 		if ( empty( $messages ) )
 			return;
@@ -130,18 +152,17 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		if ( $code ) {
 			WP_CLI::warning( $fail );
 		} else {
-			WP_CLI::success( $success );
+			WP_CLI::line( "Success: $success" );
 		}
 	}
 
 	private function _push_uploads( $settings ) {
 
+		WP_CLI::line( "\n=Deploying the uploads to server." );
 		$uploads_dir = wp_upload_dir();
-		$types = array( 'rsync', 'scp' );
-		$type = in_array( $settings['upload_type'], $types ) ? $settings['upload_type'] : array_pop( $types );
 
-		call_user_func_array( "self::_{$type}_files", array( $uploads_dir['basedir'], $settings ) );
-		WP_CLI::success( "Synced the '{$uploads_dir['basedir']} to server." );
+		call_user_func_array( "self::_{$settings['upload_type']}_files", array( $uploads_dir['basedir'], $settings ) );
+		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
 	}
 
 	private function _scp_files( $source_path, $settings ) {
@@ -153,23 +174,19 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$basename = $path_info['basename'];
 
 		$commands = array(
-			array( "pushd $dirpath" ),
-			array( 'ls' ),
-			array( "tar -zcfv $basename.tar.gz $basename", true ),
-			array( 'popd' ),
+			array( array( "tar -zcvf $basename.tar.gz $basename", $dirpath ), true ),
 			array( "mv $dirpath/$basename.tar.gz ." ),
 			array(
-				"scp $source_path.tar.gz $ssh_user@$ssh_host:$ssh_path",
-				"Running scp to copy $basename.tar.gz to $ssh_user@$ssh_host:$remote_path.",
-				"Failed copying $basename.tar.gz to server."
+				"scp $basename.tar.gz $ssh_user@$ssh_host:$ssh_path",
+				true,
+				"Copied '$basename.tar.gz' to '$ssh_user@$ssh_host:$remote_path'.",
+				"Failed copying '$basename.tar.gz' to server."
 			),
+			array( "rm $basename.tar.gz" ),
+			array( "ssh $ssh_user@$ssh_host 'cd $ssh_path; tar -zxvf $basename.tar.gz; rm -rf $basename.tar.gz'" )
 		);
 
-		/** proc_open accepts a current working directory for the command to be run */
-		foreach ( $commands as $command_info ) {
-			WP_CLI::line( $command_info[0] );
-			self::_verbose_launch( $command_info );
-		}
+		self::_run_commands( $commands );
 	}
 
 	private function _rsync_files( $source_path, $settings ) {
@@ -182,30 +199,25 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			'cache',
 		);
 
-		WP_CLI::line( sprintf(
-			'Running rsync from %s to %s:%s\n',
-			$source_path,
-			$ssh_host,
-			$remote_path
-		) );
-
 		/** Exclude files from rsync. */
 		$exclude = '--exclude '
 			. implode(
 				' --exclude ',
 				array_map( 'escapeshellarg', $exclude )
 			);
-		$command = sprintf(
-			'rsync -avz -e ssh %s %s@%s:%s %s',
-			$source_path,
-			$ssh_user,
-			$ssh_host,
-			$remote_path,
-			$exclude
+		$command = array(
+			sprintf(
+				'rsync -avz -e ssh %s %s@%s:%s %s',
+				$source_path,
+				$ssh_user,
+				$ssh_host,
+				$remote_path,
+				$exclude
+			),
+			"Copied $source_path to $ssh_host:$remote_path"
 		);
 
-		WP_CLI::line( $command );
-		WP_CLI::launch( $command );
+		self::_run_commands( array( $command ) );
 	}
 
 	/** TODO */
@@ -274,13 +286,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
 
 		/** Use different upload methods. */
-		$upload_types = array( 'scp', 'rsync' );
-		$out['upload_type'] = isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], $upload_types ) ? $assoc_args['upload'] : array_shift( $upload_types );
+		$upload_types = self::$_upload_types;
+		$out['upload_type'] = array_shift( array_keys( array_filter( $upload_types ) ) );
+		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) ) 
+			$out['upload_type'] = $assoc_args['upload'];
 
 		return $out;
 	}
 
-	protected static function _validate_config() {
+	private static function _validate_config() {
 
 		/** Required constants have their value set to true. */
 		$required = array_keys( array_filter(
@@ -299,7 +313,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		return $errors;
 	}
 
-	protected static function _get_constants() {
+	private static function _get_constants() {
 
 		$out = array();
 
@@ -313,7 +327,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		return $out;
 	}
 
-	protected static function _prefix_constant( $name ) {
+	private static function _prefix_constant( $name ) {
 
 		return strtoupper( self::$_env . '_' . $name );
 	}
@@ -338,3 +352,4 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
 WP_CLI::add_man_dir( __DIR__ . '/man', __DIR__ . '/man-src' );
+
