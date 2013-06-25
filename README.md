@@ -28,6 +28,11 @@ determines the order of execution for deployments. Valid options are: 'db'
 (deploys the databse with the url and paths replaced) and 'uploads' (deploys
 the uploads folder).
 
+* [`--upload`=<upload>]:
+
+    Optional. Default: 'scp'. When deploying uploads, you can switch between scp and rsync
+by using this flag.
+
 __Example__: Deploy database and uploads folder
 
 ```bash
