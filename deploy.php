@@ -103,8 +103,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** TODO: Add command description here.. */
 		$commands = array(
 			array( "wp db export $backup_name.sql", true, 'Exported local backup.' ),
-			array( "wp search-replace $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
-			array( "wp search-replace $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
+			array( "wp search-replace --network $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
+			array( "wp search-replace --network $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
 			array( "wp db dump $dump_name.sql", true, 'Dumped the ready to deploy db.' ),
 			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
 			array( "rm $backup_name.sql", 'Removed backup file.' ),
