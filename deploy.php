@@ -10,6 +10,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	private static $_env;
 
+	private static $_settings;
+
 	/**
 	 * List of unprefixed constants that need to be defined in wp-config.php.
 	 * About the value:
@@ -49,9 +51,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 */
 	public function push( $args, $assoc_args ) {
 
-		$settings = self::_get_sanitized_args( $args, $assoc_args );
+		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
 
-		if ( $settings['locked'] === true ) {
+		if ( self::$_settings['locked'] === true ) {
 			WP_CLI::error( "$env environment is locked, you cannot push to it." );
 			return;
 		}
@@ -61,10 +63,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		 */
 		$what = explode( ',', $assoc_args['what'] );
 		foreach ( $what as $item ) {
-			if ( method_exists( __CLASS__, "_push_$item" ) )
-				call_user_func( "self::_push_$item", $settings );
-			else
+			if ( method_exists( __CLASS__, "_push_$item" ) ) {
+				call_user_func( "self::_push_$item" );
+			} else {
 				WP_CLI::line( "Don't know how to deploy: $item" );
+			}
 		}
 
 		/** TODO Remove this. */
@@ -84,9 +87,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	}
 
-	private static function _push_db( $settings ) {
+	private static function _push_db() {
 
-		extract( $settings );
+		extract( self::$_settings );
 		$env = self::$_env;
 		$backup_name = time() . "_$env";
 		$dump_name = date( 'Y_m_d-H_i' ) . "_$env";
@@ -99,16 +102,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		/** TODO: Add command description here.. */
 		$commands = array(
-			array( "wp db export $backup_name.sql", true, 'Exporting local backup.' ),
-			array( "wp search-replace $siteurl $url", true, "Replacing $siteurl with $url on local db." ),
-			array( "wp search-replace $abspath $path", true, "Replacing $siteurl with with $path on local db." ),
-			array( "wp db dump $dump_name.sql", true, 'Dumping the ready to deploy db.' ),
-
-			array( "wp db import $backup_name.sql", true, 'Importing local backup.' ),
-			array( "rm $backup_name.sql", 'Removing backup file.' ),
-
+			array( "wp db export $backup_name.sql", true, 'Exported local backup.' ),
+			array( "wp search-replace $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
+			array( "wp search-replace $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
+			array( "wp db dump $dump_name.sql", true, 'Dumped the ready to deploy db.' ),
+			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
+			array( "rm $backup_name.sql", 'Removed backup file.' ),
 			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true, 'Copied the ready to deploy db to server.' ),
-			array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; sudo mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql\"", 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
+			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; sudo mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql'", true, 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
+			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
 			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
@@ -156,18 +158,23 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private function _push_uploads( $settings ) {
+	private function _push_uploads() {
 
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 		$uploads_dir = wp_upload_dir();
 
-		call_user_func_array( "self::_{$settings['upload_type']}_files", array( $uploads_dir['basedir'], $settings ) );
+		self::_upload_files( $uploads_dir['basedir'] );
 		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
 	}
 
-	private function _scp_files( $source_path, $settings ) {
+	private function _upload_files( $source_path ) {
+		$upload_type = self::$_settings['upload_type'];
+		call_user_func( "self::_{$upload_type}_files", $source_path );
+	}
 
-		extract( $settings );
+	private function _scp_files( $source_path ) {
+
+		extract( self::$_settings );
 		$remote_path = $ssh_path . '/';
 		$path_info = pathinfo( $source_path );
 		$dirpath = $path_info['dirname'];
@@ -189,9 +196,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 	}
 
-	private function _rsync_files( $source_path, $settings ) {
+	private function _rsync_files( $source_path ) {
 
-		extract( $settings );
+		extract( self::$_settings );
 		$remote_path = $ssh_path . '/';
 		/** TODO Manage by flag. */
 		$exclude = array(
@@ -352,4 +359,3 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
 WP_CLI::add_man_dir( __DIR__ . '/man', __DIR__ . '/man-src' );
-

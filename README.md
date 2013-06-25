@@ -41,7 +41,7 @@ subcommands
 
 * `%ENV%_URL`: __Required__. The URL of the staging server. This will be replaced in the
   deployed db.
-* `%ENV%_PATH`: __Required__. The PATH of the app on the staging server. This will be replaced in the
+* `%ENV%_PATH`: __Required__. The PATH of the WordPress instance on the staging server. This will be replaced in the
   deployed db.
 * `%ENV%_SSH_HOST`: __Required__. The SSH host for the server where the uploads will be
   deployed.
