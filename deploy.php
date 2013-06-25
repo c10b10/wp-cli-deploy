@@ -109,7 +109,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
 			array( "rm $backup_name.sql", 'Removed backup file.' ),
 			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true, 'Copied the ready to deploy db to server.' ),
-			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; sudo mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql'", true, 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
+			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql'", true, 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
 			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
 			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
