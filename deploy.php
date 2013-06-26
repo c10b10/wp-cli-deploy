@@ -45,7 +45,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	);
 
 	/**
-	 * Push local to remote
+	 * Push local to remote.
 	 *
 	 * @synopsis <environment> --what=<what> [--upload=<upload>]
 	 */
@@ -87,6 +87,28 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	}
 
+	/**
+	 * Dump a db or the uploads dir.
+	 *
+	 * @synopsis <environment> --what=<what> [--file=<file>]
+	 */
+	public function dump( $args, $assoc_args ) {
+
+		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
+
+		/**
+		 * 'what' accepts comma separated values.
+		 */
+		$what = explode( ',', $assoc_args['what'] );
+		foreach ( $what as $item ) {
+			if ( method_exists( __CLASS__, "_dump_{$item}" ) ) {
+				call_user_func( "self::_dump_{$item}", self::$_settings['file'] );
+			} else {
+				WP_CLI::line( "Don't know how to dump: $item" );
+			}
+		}
+	}
+
 	private static function _push_db() {
 
 		extract( self::$_settings );
@@ -96,18 +118,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		WP_CLI::line( "Pushing the db to $env ..." );
 
-		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
-		$abspath = untrailingslashit( ABSPATH );
 		$path = untrailingslashit( $path );
+		$dump_name = date( 'Y_m_d-H_i' ) . "_$env";
 
 		/** TODO: Add command description here.. */
 		$commands = array(
-			array( "wp db export $backup_name.sql", true, 'Exported local backup.' ),
-			array( "wp search-replace --network $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
-			array( "wp search-replace --network $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
-			array( "wp db dump $dump_name.sql", true, 'Dumped the db which will be deployed.' ),
-			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
-			array( "rm $backup_name.sql", 'Removed backup file.' ),
 			array( "scp $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path", true, 'Copied the ready to deploy db to server.' ),
 			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql'", true, 'Deploying the db on server.', "Failed deploying the db to server. File '$dump_name.sql' is preserved on server." ),
 			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
@@ -115,8 +130,64 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
 
+        self::_dump_db( $dump_name );
 		self::_run_commands( $commands );
 	}
+
+	private function _push_uploads() {
+
+		WP_CLI::line( "\n=Deploying the uploads to server." );
+		$uploads_dir = wp_upload_dir();
+
+		self::_upload_files( $uploads_dir['basedir'] );
+		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
+	}
+
+    private static function _dump_db( $dump_name = '' ) {
+
+        $env = self::$_env;
+		$backup_name = time() . "_$env";
+		$abspath = untrailingslashit( ABSPATH );
+		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
+		$path =  self::$_settings['path'];;
+        $url = self::$_settings['url'];
+		$dump_name = empty( $dump_name ) ? date( 'Y_m_d-H_i' ) . "_$env" : $dump_name;
+
+		$commands = array(
+			array( "wp db export $backup_name.sql", true, 'Exported local backup.' ),
+			array( "wp search-replace --network $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
+			array( "wp search-replace --network $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
+			array( "wp db dump $dump_name.sql", true, 'Dumped the db which will be deployed.' ),
+			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
+            array( "rm $backup_name.sql", 'Removed backup file.' )
+        );
+
+        self::_run_commands( $commands );
+    }
+
+    private static function _dump_uploads( $dump_name = '' ) {
+
+        $uploads_dir = wp_upload_dir();
+		$uploads_dir = pathinfo( $uploads_dir['basedir'] );
+
+		self::_archive_file( $uploads_dir['filename'], $dump_name, $uploads_dir['dirname'] );
+    }
+
+    private static function _archive_file( $file, $archive_name = '', $context_dir = '' ) {
+
+		$path_info = pathinfo( $file );
+		$dirpath = $path_info['dirname'];
+		$archive_name = empty( $archive_name ) ? $path_info['basename'] : $archive_name;
+
+        $tar_command = "tar -zcvf $archive_name.tar.gz $file";
+        $tar_command = empty( $context_dir ) ? $tar_command : array( $tar_command, $context_dir );
+		$commands = array(
+			array( $tar_command, true ),
+			array( "mv $context_dir/$archive_name.tar.gz ." ),
+		);
+
+		self::_run_commands( $commands );
+    }
 
 	private static function _run_commands( $commands ) {
 
@@ -158,15 +229,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private function _push_uploads() {
-
-		WP_CLI::line( "\n=Deploying the uploads to server." );
-		$uploads_dir = wp_upload_dir();
-
-		self::_upload_files( $uploads_dir['basedir'] );
-		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
-	}
-
 	private function _upload_files( $source_path ) {
 		$upload_type = self::$_settings['upload_type'];
 		call_user_func( "self::_{$upload_type}_files", $source_path );
@@ -181,8 +243,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$basename = $path_info['basename'];
 
 		$commands = array(
-			array( array( "tar -zcvf $basename.tar.gz $basename", $dirpath ), true ),
-			array( "mv $dirpath/$basename.tar.gz ." ),
 			array(
 				"scp $basename.tar.gz $ssh_user@$ssh_host:$ssh_path",
 				true,
@@ -193,6 +253,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "ssh $ssh_user@$ssh_host 'cd $ssh_path; tar -zxvf $basename.tar.gz; rm -rf $basename.tar.gz'" )
 		);
 
+        self::_archive_file( $basename, '', $dirpath );
 		self::_run_commands( $commands );
 	}
 
@@ -297,6 +358,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['upload_type'] = array_shift( array_keys( array_filter( $upload_types ) ) );
 		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) ) 
 			$out['upload_type'] = $assoc_args['upload'];
+
+        $out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
 
 		return $out;
 	}

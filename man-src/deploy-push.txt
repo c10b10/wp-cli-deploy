@@ -20,7 +20,7 @@ by using this flag.
 ## EXAMPLES
 
 	# Deploy database and uploads folder
-	wp deploy staging --what=db,uploads
+	wp deploy push staging --what=db,uploads
 
 	# Deploy uploads using rsync
-	wp deploy staging --what=uploads --upload=rsync
+	wp deploy push staging --what=uploads --upload=rsync
