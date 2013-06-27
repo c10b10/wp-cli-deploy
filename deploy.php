@@ -36,6 +36,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		'db_password' => true,
 		'locked' => false,
 		'remove_admin' => false,
+		'post_push_script' => false,
 	);
 
 	/** First true-valued key is the default. */
@@ -77,12 +78,16 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/* 	WP_CLI::launch( $com ); */
 		/* } */
 
-		$const = strtoupper( $env ) . '_POST_SCRIPT';
+		$const = strtoupper( self::$_env ) . '_POST_PUSH_SCRIPT';
+		var_dump( $const );
 		if ( defined( $const ) ) {
+			WP_CLI::line( 'Shit is going down' );
 			$subcommand = constant( $const );
-			$command = "ssh $ssh_user@$ssh_host \"$subcommand\"";
-			WP_CLI::line( $command );
-			WP_CLI::launch( $command );
+			$ssh_user = self::$_settings['ssh_user'];
+			$ssh_host = self::$_settings['ssh_host'];
+			$command = "ssh $ssh_user@$ssh_host '$subcommand'";
+
+			self::_run_commands( $command );
 		}
 
 	}
@@ -130,7 +135,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
 
-        self::_dump_db( $dump_name );
+		self::_dump_db( $dump_name );
 		self::_run_commands( $commands );
 	}
 
@@ -139,18 +144,19 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 		$uploads_dir = wp_upload_dir();
 
-		self::_upload_files( $uploads_dir['basedir'] );
+        $upload_type = self::$_settings['upload_type'];
+		call_user_func( "self::_{$upload_type}_files", $uploads_dir['basedir'] );
 		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
 	}
 
-    private static function _dump_db( $dump_name = '' ) {
+	private static function _dump_db( $dump_name = '' ) {
 
-        $env = self::$_env;
+		$env = self::$_env;
 		$backup_name = time() . "_$env";
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
-		$path =  self::$_settings['path'];;
-        $url = self::$_settings['url'];
+		$path = self::$_settings['path'];
+		$url = self::$_settings['url'];
 		$dump_name = empty( $dump_name ) ? date( 'Y_m_d-H_i' ) . "_$env" : $dump_name;
 
 		$commands = array(
@@ -159,39 +165,41 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "wp search-replace --network $abspath $path", true, "Replaced $siteurl with with $path on local db." ),
 			array( "wp db dump $dump_name.sql", true, 'Dumped the db which will be deployed.' ),
 			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
-            array( "rm $backup_name.sql", 'Removed backup file.' )
-        );
+			array( "rm $backup_name.sql", 'Removed backup file.' )
+		);
 
-        self::_run_commands( $commands );
-    }
+		self::_run_commands( $commands );
+	}
 
-    private static function _dump_uploads( $dump_name = '' ) {
+	private static function _dump_uploads( $dump_name = '' ) {
 
-        $uploads_dir = wp_upload_dir();
+		$uploads_dir = wp_upload_dir();
 		$uploads_dir = pathinfo( $uploads_dir['basedir'] );
 
 		self::_archive_file( $uploads_dir['filename'], $dump_name, $uploads_dir['dirname'] );
-    }
+	}
 
-    private static function _archive_file( $file, $archive_name = '', $context_dir = '' ) {
+	/** Generic. */
+	private static function _archive_file( $file, $archive_name = '', $context_dir = '' ) {
 
 		$path_info = pathinfo( $file );
 		$dirpath = $path_info['dirname'];
 		$archive_name = empty( $archive_name ) ? $path_info['basename'] : $archive_name;
 
-        $tar_command = "tar -zcvf $archive_name.tar.gz $file";
-        $tar_command = empty( $context_dir ) ? $tar_command : array( $tar_command, $context_dir );
+		$tar_command = "tar -zcvf $archive_name.tar.gz $file";
+		$tar_command = empty( $context_dir ) ? $tar_command : array( $tar_command, $context_dir );
 		$commands = array(
 			array( $tar_command, true ),
 			array( "mv $context_dir/$archive_name.tar.gz ." ),
 		);
 
 		self::_run_commands( $commands );
-    }
+	}
 
+	/** Generic. */
 	private static function _run_commands( $commands ) {
 
-		$commands = is_string( $commands ) ? array( $commands ) : $commands;
+		$commands = is_string( $commands ) ? array( array( $commands ) ) : $commands;
 
 		foreach ( $commands as $command_info ) {
 			$command = is_array( $command_info[0] ) ? $command_info[0][0] : $command_info[0];
@@ -200,6 +208,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
+	/** Generic alternate implementation of launch. */
 	private function _verbose_launch( $command_info ) {
 
 		$cwd = null;
@@ -229,11 +238,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private function _upload_files( $source_path ) {
-		$upload_type = self::$_settings['upload_type'];
-		call_user_func( "self::_{$upload_type}_files", $source_path );
-	}
-
 	private function _scp_files( $source_path ) {
 
 		extract( self::$_settings );
@@ -253,7 +257,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "ssh $ssh_user@$ssh_host 'cd $ssh_path; tar -zxvf $basename.tar.gz; rm -rf $basename.tar.gz'" )
 		);
 
-        self::_archive_file( $basename, '', $dirpath );
+		self::_archive_file( $basename, '', $dirpath );
 		self::_run_commands( $commands );
 	}
 
@@ -285,7 +289,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			"Copied $source_path to $ssh_host:$remote_path"
 		);
 
-		self::_run_commands( array( $command ) );
+		self::_run_commands( $command );
 	}
 
 	/** TODO */
@@ -359,7 +363,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) ) 
 			$out['upload_type'] = $assoc_args['upload'];
 
-        $out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
+		$out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
 
 		return $out;
 	}
