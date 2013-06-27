@@ -201,6 +201,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		$commands = is_string( $commands ) ? array( array( $commands ) ) : $commands;
 
+		/** TODO: If starts with wp, use _run_command instead of launch. */
 		foreach ( $commands as $command_info ) {
 			$command = is_array( $command_info[0] ) ? $command_info[0][0] : $command_info[0];
 			WP_CLI::line( "\n$ $command" );
