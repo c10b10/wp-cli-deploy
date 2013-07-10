@@ -48,7 +48,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	/**
 	 * Push local to remote.
 	 *
-	 * @synopsis <environment> --what=<what> [--upload=<upload>]
+	 * @synopsis <environment> --what=<what> [--upload=<upload>] [--cleanup]
 	 */
 	public function push( $args, $assoc_args ) {
 
@@ -64,8 +64,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		 */
 		$what = explode( ',', $assoc_args['what'] );
 		foreach ( $what as $item ) {
+			$args = array();
+			if ( ! empty( $assoc_args['cleanup'] ) )
+				array_push( $args, true );
+
 			if ( method_exists( __CLASS__, "_push_$item" ) ) {
-				call_user_func( "self::_push_$item" );
+				call_user_func_array( "self::_push_$item", $args );
 			} else {
 				WP_CLI::line( "Don't know how to deploy: $item" );
 			}
@@ -113,7 +117,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private static function _push_db() {
+	private static function _push_db( $cleanup = false ) {
 
 		extract( self::$_settings );
 		$env = self::$_env;
@@ -127,12 +131,22 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		/** TODO: Add command description here.. */
 		$commands = array(
-			array( "rsync -avz -e ssh $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_dump_name.sql", true, 'Copied the ready to deploy db to server.' ),
-			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql'", true, 'Deploying the db on server.', "Failed deploying the db to server. File '$server_dump_name.sql' is preserved on server." ),
-			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_dump_name.sql'" ),
-			/* array( "ssh $ssh_db_user@$ssh_db_host \"cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $dump_name.sql; rm $dump_name.sql\"", true ), */
+			array(
+				"rsync -avz -e ssh $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_dump_name.sql",
+				true, 'Copied the ready to deploy db to server.'
+			),
+			array(
+				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $server_dump_name.sql'",
+				true, 'Deploying the db on server.', 'Failed deploying the db to server.'
+			),
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
+
+		if ( $cleanup ) {
+			array_push( $commands, array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_dump_name.sql'" ) );
+		} else {
+			WP_CLI::line( "\n=Deploying the uploads to server." );
+		}
 
 		self::_dump_db( $dump_name );
 		self::_run_commands( $commands );
@@ -170,14 +184,41 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 	}
 
+	/**
+	 * @synopsis <environment> --what=<what> [--cleanup] [--no-backup]
+	 */
+	public function pull( $args, $assoc_args ) {
+
+		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
+
+		/**
+		 * 'what' accepts comma separated values.
+		 */
+		$what = explode( ',', $assoc_args['what'] );
+		foreach ( $what as $item ) {
+			$args = array( false, true );
+			if ( ! empty( $assoc_args['cleanup'] ) )
+				$args[0] = true;
+			if ( ! empty( $assoc_args['no-backup'] ) )
+				$args[1] = false;
+
+			if ( method_exists( __CLASS__, "_pull_$item" ) ) {
+				call_user_func_array( "self::_pull_$item", $args );
+			} else {
+				WP_CLI::line( "Don't know how to pull: $item" );
+			}
+		}
+	}
 
 	/** TODO */
-	private static function _pull_db( $preserve = true, $backup = false ) {
+	private static function _pull_db( $cleanup = false, $backup = true ) {
 		/** Add preserve file on server for rsync. */
 		extract( self::$_settings );
 		$env = self::$_env;
 		$server_file = "$env.sql";
 		$backup_name = date( 'Y_m_d-H_i' ) . '_bk.sql';
+		$abspath = untrailingslashit( ABSPATH );
+		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 
 		WP_CLI::line( "Pushing the db to $env ..." );
 
@@ -196,23 +237,19 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 				"wp db import $server_file",
 				true, 'Imported the remote db.'
 			),
-			array(
-				"wp db import $dump_name.sql",
-				true, 'Imported the remote db.'
-			),
 			array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ),
 			array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ),
-			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
+			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_file'" ),
 		);
 
 		/** Remove local dump only if requested. */
-		if ( ! $preserve ) {
+		if ( $cleanup ) {
 			array_push( $commands, array( "rm $dump_name.sql", 'Removing the local dump.' ) );
 		}
 
 		if ( $backup ) {
 			array_unshift( $commands, array(
-				"wp db export {$backup_name}.",
+				"wp db export $backup_name",
 				true, "Backed up the local db to $backup_name"
 			) );
 		}
