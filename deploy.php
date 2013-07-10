@@ -170,12 +170,110 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 	}
 
+
+	/** TODO */
+	private static function _pull_db( $preserve = true, $backup = false ) {
+		/** Add preserve file on server for rsync. */
+		extract( self::$_settings );
+		$env = self::$_env;
+		$server_file = "$env.sql";
+		$backup_name = date( 'Y_m_d-H_i' ) . '_bk.sql';
+
+		WP_CLI::line( "Pushing the db to $env ..." );
+
+		$path = untrailingslashit( $path );
+
+		$commands = array(
+			array(
+				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host $db_name > $server_file'",
+				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
+			),
+			array(
+				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $server_file",
+				true, 'Copied the ready to deploy db to server.',
+			),
+			array(
+				"wp db import $server_file",
+				true, 'Imported the remote db.'
+			),
+			array(
+				"wp db import $dump_name.sql",
+				true, 'Imported the remote db.'
+			),
+			array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ),
+			array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ),
+			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
+		);
+
+		/** Remove local dump only if requested. */
+		if ( ! $preserve ) {
+			array_push( $commands, array( "rm $dump_name.sql", 'Removing the local dump.' ) );
+		}
+
+		if ( $backup ) {
+			array_unshift( $commands, array(
+				"wp db export {$backup_name}.",
+				true, "Backed up the local db to $backup_name"
+			) );
+		}
+
+		self::_run_commands( $commands );
+	}
+
 	private static function _dump_uploads( $dump_name = '' ) {
 
 		$uploads_dir = wp_upload_dir();
 		$uploads_dir = pathinfo( $uploads_dir['basedir'] );
 
 		self::_archive_file( $uploads_dir['filename'], $dump_name, $uploads_dir['dirname'] );
+	}
+
+	private static function _get_sanitized_args( $args, $assoc_args = null ) {
+
+		self::$_env = $args[0];
+
+		$errors = self::_validate_config();
+		if ( $errors !== true ) {
+			foreach ( $errors as $error ) {
+				WP_Cli::error( $error );
+			}
+			return false;
+		}
+
+		$out = self::_get_constants();
+		$out['env'] = self::$_env;
+		$out['db_user'] = escapeshellarg( $out['db_user'] );
+		$out['db_host'] = escapeshellarg( $out['db_host'] );
+		$out['db_password'] = escapeshellarg( $out['db_password'] );
+
+		/** Use different upload methods. */
+		$upload_types = self::$_upload_types;
+		$out['upload_type'] = array_shift( array_keys( array_filter( $upload_types ) ) );
+		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) )
+			$out['upload_type'] = $assoc_args['upload'];
+
+		$out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
+
+		return $out;
+	}
+
+	private static function _validate_config() {
+
+		/** Required constants have their value set to true. */
+		$required = array_keys( array_filter(
+			self::$constants,
+			function($v) { return $v === true; }
+		) );
+
+		$errors = array();
+		foreach ( $required as $const ) {
+			$required_constant = self::_prefix_constant( $const );
+			if ( ! defined( $required_constant ) ) {
+				$errors[] = "$required_constant is not defined";
+			}
+		}
+		if ( count( $errors ) == 0 ) return true;
+		return $errors;
 	}
 
 	/** Generic. */
@@ -290,151 +388,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		);
 
 		self::_run_commands( $command );
-	}
-
-	/** TODO */
-	public function pull( $args = array() ) {
-
-		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
-
-		extract( self::$_settings );
-
-		$const = strtoupper( ENVIRONMENT ) . '_LOCKED';
-		if ( constant( $const ) === true ) {
-			return WP_CLI::error( ENVIRONMENT . ' env is locked, you can not pull to your local copy' );
-		}
-		$host = $db_host . ':' . $db_port;
-
-		$wpdb = new wpdb( $db_user, $db_password, $db_name, $host );
-		$path = ABSPATH;
-		$url = get_bloginfo( 'url' );
-		$dist_path  = constant( self::_prefix_constant( 'path' ) ) . '/';
-		$command = "ssh $ssh_user@$ssh_host  \"cd $dist_path;wp migrate to $path $url dump.sql\" && scp $ssh_user@$ssh_host:$dist_path/dump.sql .";
-		WP_CLI::launch( $command );
-		WP_CLI::launch( 'wp db import dump.sql' );
-		self::pull_files( $args );
-	}
-
-	/** TODO */
-	private function pull_files( $args = array() ) {
-
-		WP_CLI::line( 'pulling files' );
-		extract( self::_get_sanitized_args( $args ) );
-
-		$const = strtoupper( ENVIRONMENT ) . '_LOCKED';
-		if ( constant( $const ) === true ) {
-			return WP_CLI::error( ENVIRONMENT . ' env is locked, you can not pull to your local copy' );
-		}
-		$host = $db_host.':'.$db_port;
-
-		if ( $ssh_host ) {
-			$dir = wp_upload_dir();
-			$dist_path  = constant( self::_prefix_constant( 'path' ) ) . '/';
-			$remote_path = $dist_path;
-			$local_path = ABSPATH;
-
-			WP_CLI::line( sprintf( 'Running rsync from %s:%s to %s', $ssh_host, $remote_path, $local_path ) );
-			$com = sprintf( "rsync -avz -e ssh  %s@%s:%s %s  --delete --exclude '.git' --exclude 'wp-content/cache' --exclude 'wp-content/_wpremote_backups' --exclude 'wp-config.php'", $ssh_user, $ssh_host, $remote_path, $local_path );
-			WP_CLI::line( $com );
-			WP_CLI::launch( $com );
-		}
-
-	}
-
-	private static function _pull_db( $preserve = true, $backup = false ) {
-		/** Add preserve file on server for rsync. */
-		extract( self::$_settings );
-		$env = self::$_env;
-		$server_file = "$env.sql";
-		$backup_name = date( 'Y_m_d-H_i' ) . '_bk.sql';
-
-		WP_CLI::line( "Pushing the db to $env ..." );
-
-		$path = untrailingslashit( $path );
-
-		$commands = array(
-			array(
-				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host $db_name > $server_file'",
-				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
-			),
-			array(
-				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $server_file",
-				true, 'Copied the ready to deploy db to server.',
-			),
-			array(
-				"wp db import $server_file",
-				true, 'Imported the remote db.'
-			),
-			array(
-				"wp db import $dump_name.sql",
-				true, 'Imported the remote db.'
-			),
-			array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ),
-			array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ),
-			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $dump_name.sql'" ),
-		);
-
-		/** Remove local dump only if requested. */
-		if ( ! $preserve ) {
-			array_push( $commands, array( "rm $dump_name.sql", 'Removing the local dump.' ) );
-		}
-
-		if ( $backup ) {
-			array_unshift( $commands, array(
-				"wp db export {$backup_name}.",
-				true, "Backed up the local db to $backup_name"
-			) );
-		}
-
-		self::_run_commands( $commands );
-	}
-
-	private static function _get_sanitized_args( $args, $assoc_args = null ) {
-
-		self::$_env = $args[0];
-
-		$errors = self::_validate_config();
-		if ( $errors !== true ) {
-			foreach ( $errors as $error ) {
-				WP_Cli::error( $error );
-			}
-			return false;
-		}
-
-		$out = self::_get_constants();
-		$out['env'] = self::$_env;
-		$out['db_user'] = escapeshellarg( $out['db_user'] );
-		$out['db_host'] = escapeshellarg( $out['db_host'] );
-		$out['db_password'] = escapeshellarg( $out['db_password'] );
-
-		/** Use different upload methods. */
-		$upload_types = self::$_upload_types;
-		$out['upload_type'] = array_shift( array_keys( array_filter( $upload_types ) ) );
-		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) )
-			$out['upload_type'] = $assoc_args['upload'];
-
-		$out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
-
-		return $out;
-	}
-
-	private static function _validate_config() {
-
-		/** Required constants have their value set to true. */
-		$required = array_keys( array_filter(
-			self::$constants,
-			function($v) { return $v === true; }
-		) );
-
-		$errors = array();
-		foreach ( $required as $const ) {
-			$required_constant = self::_prefix_constant( $const );
-			if ( ! defined( $required_constant ) ) {
-				$errors[] = "$required_constant is not defined";
-			}
-		}
-		if ( count( $errors ) == 0 ) return true;
-		return $errors;
 	}
 
 	private static function _get_constants() {
