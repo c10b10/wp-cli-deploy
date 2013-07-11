@@ -123,7 +123,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$env = self::$_env;
 		$backup_name = time() . "_$env";
 		$dump_name = date( 'Y_m_d-H_i' ) . "_$env";
-		$server_dump_name = $env;
+		$server_file = "{$env}_push_" . self::_get_unique_env_id() . '.sql';
 
 		WP_CLI::line( "Pushing the db to $env ..." );
 
@@ -132,18 +132,18 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** TODO: Add command description here.. */
 		$commands = array(
 			array(
-				"rsync -avz -e ssh $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_dump_name.sql",
+				"rsync -avz -e ssh $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file",
 				true, 'Copied the ready to deploy db to server.'
 			),
 			array(
-				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $server_dump_name.sql'",
+				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $server_file'",
 				true, 'Deploying the db on server.', 'Failed deploying the db to server.'
 			),
 			array( "rm $dump_name.sql", 'Removing the local dump.' ),
 		);
 
 		if ( $cleanup ) {
-			array_push( $commands, array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_dump_name.sql'" ) );
+			array_push( $commands, array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_file'" ) );
 		} else {
 			WP_CLI::line( "\n=Deploying the uploads to server." );
 		}
@@ -205,7 +205,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			if ( method_exists( __CLASS__, "_pull_$item" ) ) {
 				call_user_func_array( "self::_pull_$item", $args );
 			} else {
-				WP_CLI::line( "Don't know how to pull: $item" );
+				WP_CLI::warning( "Don't know how to pull: $item" );
 			}
 		}
 	}
@@ -215,7 +215,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** Add preserve file on server for rsync. */
 		extract( self::$_settings );
 		$env = self::$_env;
-		$server_file = "$env.sql";
+		$server_file = "{$env}_pull_" . self::_get_unique_env_id() . '.sql';
 		$backup_name = date( 'Y_m_d-H_i' ) . '_bk.sql';
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
@@ -461,6 +461,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$domain = preg_replace( '/^www\./', '', $url_parts['host'] );
 
 		return $domain;
+	}
+
+	private static function _get_unique_env_id() {
+		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
+
+		return substr( sha1( DB_NAME . $siteurl ), 0, 8 );
 	}
 }
 
