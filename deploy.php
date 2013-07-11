@@ -26,6 +26,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		'ssh_host' => true,
 		'ssh_user' => true,
 		'ssh_path' => true,
+		'uploads_path' => false,
 		'ssh_db_host' => 'ssh_host',
 		'ssh_db_user' => 'ssh_user',
 		'ssh_db_path' => 'ssh_path',
@@ -145,6 +146,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	private function _push_uploads() {
 
+		/** TODO Use uploads path to move directily where it should be. */
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 		$uploads_dir = wp_upload_dir();
 
@@ -202,8 +204,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	/** 
-	 * TODO: Change to args array method, and manage setting dependecies in the 
+	/**
+	 * MAIN TODO: Change to args array method, and manage setting dependecies in the
 	 * command. Keep methods independent of the environment.
 	 */
 	private static function _pull_db( $cleanup = false, $backup = true ) {
@@ -252,7 +254,17 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 	}
 
-	private static function _pull_uploads() {
+	private static function _pull_uploads( $cleanup = false, $backup = true ) {
+		/** Pull uploads. */
+		extract( self::$_settings );
+
+		WP_CLI::line( "\n=Deploying the uploads to server." );
+
+		$source = self::$_settings['uploads_path'];
+		$local_path = "{$env}_pull_uploads_" . self::_get_unique_env_id();
+		self::_rsync( "$ssh_user@$ssh_host:$source", $local_path );
+		WP_CLI::success( "Pulled the staging 'uploads' dir to '$local_path'." );
+
 	}
 
 	private static function _dump_uploads( $dump_name = '' ) {
@@ -280,6 +292,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_user'] = escapeshellarg( $out['db_user'] );
 		$out['db_host'] = escapeshellarg( $out['db_host'] );
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
+		if ( ! isset( $out['uploads_path'] ) ) {
+			$uploads_path = wp_upload_dir();
+			$out['uploads_path'] = trailingslashit( $out['path'] ) 
+				. substr( $uploads_path['basedir'], strlen( ABSPATH ) );
+		}
 
 		$out['archive'] = isset( $assoc_args['archive'] ) ? true : false;
 		$out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
@@ -393,7 +410,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			);
 		$command = array(
 			sprintf(
-				"rsync -av$compress -e ssh --delete %s %s %s",
+				"rsync -av$compress -r -e ssh --delete %s %s %s",
 				$source,
 				$destination,
 				$exclude
