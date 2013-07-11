@@ -6,6 +6,10 @@
  * @package wp-deploy-flow
  * @author Arnaud Sellenet
  */
+/**
+ * MAIN TODO: Change to args array method, and manage setting dependecies in the
+ * command. Keep methods independent of the environment.
+ */
 class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	private static $_env;
@@ -159,18 +163,18 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	private static function _dump_db( $dump_file = '' ) {
 
 		$env = self::$_env;
-		$backup_file = time() . "_$env.sql";
+		$backup_file = ABSPATH . time() . "_$env.sql";
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 		$path = self::$_settings['path'];
 		$url = self::$_settings['url'];
-		$dump_file = empty( $dump_file ) ? date( 'Y_m_d-H_i' ) . "_$env.sql" : $dump_file;
+		$dump_file = ABSPATH . empty( $dump_file ) ? date( 'Y_m_d-H_i' ) . "_$env.sql" : $dump_file;
 
 		$commands = array(
 			array( "wp db export $backup_file", true, 'Exported local backup.' ),
 			array( "wp search-replace --network $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
 			array( "wp search-replace --network $abspath $path", true, "Replaced $abspath with with $path on local db." ),
-			array( "wp db dump $dump_file", true, 'Dumped the db which will be deployed.' ),
+			array( "wp db export $dump_file", true, 'Dumped the db which will be deployed.' ),
 			array( "wp db import $backup_file", true, 'Imported local backup.' ),
 			array( "rm $backup_file", 'Removed backup file.' )
 		);
@@ -204,10 +208,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	/**
-	 * MAIN TODO: Change to args array method, and manage setting dependecies in the
-	 * command. Keep methods independent of the environment.
-	 */
 	private static function _pull_db( $cleanup = false, $backup = true ) {
 		/** Add preserve file on server for rsync. */
 		extract( self::$_settings );
@@ -217,11 +217,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 
-		WP_CLI::line( "Pushing the db to $env ..." );
+		WP_CLI::line( "Pulling the $env db to local." );
 
 		$path = untrailingslashit( $path );
 
-		$command = array(
+		$commands = array(
 			array(
 				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host $db_name > $server_file'",
 				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
@@ -261,7 +261,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 
 		$source = self::$_settings['uploads_path'];
-		$local_path = "{$env}_pull_uploads_" . self::_get_unique_env_id();
+		$local_path = ABSPATH . "{$env}_pull_uploads_" . self::_get_unique_env_id();
 		self::_rsync( "$ssh_user@$ssh_host:$source", $local_path );
 		WP_CLI::success( "Pulled the staging 'uploads' dir to '$local_path'." );
 
@@ -334,12 +334,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$tar_command = empty( $context_dir ) ? $tar_command : array( $tar_command, $context_dir );
 		$commands = array(
 			array( $tar_command, true ),
-			array( "mv $context_dir/$archive_name.tar.gz ." ),
+			array( "mv $context_dir/$archive_name.tar.gz " . ABSPATH ),
 		);
 
 		self::_run_commands( $commands );
 
-		return "$archive_name.tar.gz";
+		return ABSPATH . "$archive_name.tar.gz";
 	}
 
 	/**
@@ -390,7 +390,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private function _rsync( $source, $destination = false, $msg = false, $compress = false ) {
+	private function _rsync( $source, $destination = false, $msg = false, $compress = true ) {
 
 		extract( self::$_settings );
 		/** TODO Manage by flag. */
@@ -410,7 +410,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			);
 		$command = array(
 			sprintf(
-				"rsync -av$compress -r -e ssh --delete %s %s %s",
+				"rsync -av$compress -e ssh --delete %s %s %s",
 				$source,
 				$destination,
 				$exclude
