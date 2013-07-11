@@ -39,12 +39,6 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		'post_push_script' => false,
 	);
 
-	/** First true-valued key is the default. */
-	private static $_upload_types = array(
-		'scp' => false,
-		'rsync' => true
-	);
-
 	/**
 	 * Push local to remote.
 	 *
@@ -122,7 +116,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		extract( self::$_settings );
 		$env = self::$_env;
 		$backup_name = time() . "_$env";
-		$dump_name = date( 'Y_m_d-H_i' ) . "_$env";
+		$dump_file = date( 'Y_m_d-H_i' ) . "_$env.sql";
 		$server_file = "{$env}_push_" . self::_get_unique_env_id() . '.sql';
 
 		WP_CLI::line( "Pushing the db to $env ..." );
@@ -132,14 +126,10 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** TODO: Add command description here.. */
 		$commands = array(
 			array(
-				"rsync -avz -e ssh $dump_name.sql $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file",
-				true, 'Copied the ready to deploy db to server.'
-			),
-			array(
 				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $server_file'",
 				true, 'Deploying the db on server.', 'Failed deploying the db to server.'
 			),
-			array( "rm $dump_name.sql", 'Removing the local dump.' ),
+			array( "rm $dump_file", 'Removing the local dump.' ),
 		);
 
 		if ( $cleanup ) {
@@ -148,7 +138,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			WP_CLI::line( "\n=Deploying the uploads to server." );
 		}
 
-		self::_dump_db( $dump_name );
+		self::_dump_db( $dump_file );
+		self::_rsync( $dump_file, "$ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file" );
 		self::_run_commands( $commands );
 	}
 
@@ -157,28 +148,29 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 		$uploads_dir = wp_upload_dir();
 
-        $upload_type = self::$_settings['upload_type'];
-		call_user_func( "self::_{$upload_type}_files", $uploads_dir['basedir'] );
+		$uploads_path = self::$_settings['archive'] ? self::_dump_uploads() : $uploads_dir['basedir'];
+		self::_rsync( $uploads_path );
+
 		WP_CLI::success( "Deployed the '{$uploads_dir['basedir']}' to server." );
 	}
 
-	private static function _dump_db( $dump_name = '' ) {
+	private static function _dump_db( $dump_file = '' ) {
 
 		$env = self::$_env;
-		$backup_name = time() . "_$env";
+		$backup_file = time() . "_$env.sql";
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
 		$path = self::$_settings['path'];
 		$url = self::$_settings['url'];
-		$dump_name = empty( $dump_name ) ? date( 'Y_m_d-H_i' ) . "_$env" : $dump_name;
+		$dump_file = empty( $dump_file ) ? date( 'Y_m_d-H_i' ) . "_$env.sql" : $dump_file;
 
 		$commands = array(
-			array( "wp db export $backup_name.sql", true, 'Exported local backup.' ),
+			array( "wp db export $backup_file", true, 'Exported local backup.' ),
 			array( "wp search-replace --network $siteurl $url", true, "Replaced $siteurl with $url on local db." ),
 			array( "wp search-replace --network $abspath $path", true, "Replaced $abspath with with $path on local db." ),
-			array( "wp db dump $dump_name.sql", true, 'Dumped the db which will be deployed.' ),
-			array( "wp db import $backup_name.sql", true, 'Imported local backup.' ),
-			array( "rm $backup_name.sql", 'Removed backup file.' )
+			array( "wp db dump $dump_file", true, 'Dumped the db which will be deployed.' ),
+			array( "wp db import $backup_file", true, 'Imported local backup.' ),
+			array( "rm $backup_file", 'Removed backup file.' )
 		);
 
 		self::_run_commands( $commands );
@@ -210,7 +202,10 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	/** TODO */
+	/** 
+	 * TODO: Change to args array method, and manage setting dependecies in the 
+	 * command. Keep methods independent of the environment.
+	 */
 	private static function _pull_db( $cleanup = false, $backup = true ) {
 		/** Add preserve file on server for rsync. */
 		extract( self::$_settings );
@@ -224,14 +219,14 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		$path = untrailingslashit( $path );
 
-		$commands = array(
+		$command = array(
 			array(
 				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host $db_name > $server_file'",
 				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
 			),
 			array(
 				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $server_file",
-				true, 'Copied the ready to deploy db to server.',
+				true, 'Copied the db from server.',
 			),
 			array(
 				"wp db import $server_file",
@@ -244,7 +239,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		/** Remove local dump only if requested. */
 		if ( $cleanup ) {
-			array_push( $commands, array( "rm $dump_name.sql", 'Removing the local dump.' ) );
+			array_push( $commands, array( "rm $server_file", 'Removing the local dump.' ) );
 		}
 
 		if ( $backup ) {
@@ -257,12 +252,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 	}
 
+	private static function _pull_uploads() {
+	}
+
 	private static function _dump_uploads( $dump_name = '' ) {
 
 		$uploads_dir = wp_upload_dir();
 		$uploads_dir = pathinfo( $uploads_dir['basedir'] );
 
-		self::_archive_file( $uploads_dir['filename'], $dump_name, $uploads_dir['dirname'] );
+		return self::_archive_file( $uploads_dir['filename'], $dump_name, $uploads_dir['dirname'] );
 	}
 
 	private static function _get_sanitized_args( $args, $assoc_args = null ) {
@@ -283,12 +281,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_host'] = escapeshellarg( $out['db_host'] );
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
 
-		/** Use different upload methods. */
-		$upload_types = self::$_upload_types;
-		$out['upload_type'] = array_shift( array_keys( array_filter( $upload_types ) ) );
-		if ( isset( $assoc_args['upload'] ) && in_array( $assoc_args['upload'], array_keys( $upload_types ) ) )
-			$out['upload_type'] = $assoc_args['upload'];
-
+		$out['archive'] = isset( $assoc_args['archive'] ) ? true : false;
 		$out['file'] = isset( $assoc_args['file'] ) ? $assoc_args['file'] : false;
 
 		return $out;
@@ -328,17 +321,24 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		);
 
 		self::_run_commands( $commands );
+
+		return "$archive_name.tar.gz";
 	}
 
-	/** Generic. */
+	/**
+	 * Runs a list of commands.
+	 */
 	private static function _run_commands( $commands ) {
 
-		$commands = is_string( $commands ) ? array( array( $commands ) ) : $commands;
+		/** Support both a commands array and a single command */
+		if ( is_string( $commands ) ) {
+			$commands = array( array( $commands ) );
+		} elseif ( is_string( $commands[0] ) ) {
+			$commands = array( $commands );
+		}
 
-		/** TODO: If starts with wp, use _run_command instead of launch. */
 		foreach ( $commands as $command_info ) {
-			$command = is_array( $command_info[0] ) ? $command_info[0][0] : $command_info[0];
-			WP_CLI::line( "\n$ $command" );
+			WP_CLI::line( "\n$ {$command_info[0]}" );
 			self::_verbose_launch( $command_info );
 		}
 	}
@@ -373,38 +373,17 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 	}
 
-	private function _scp_files( $source_path ) {
+	private function _rsync( $source, $destination = false, $msg = false, $compress = false ) {
 
 		extract( self::$_settings );
-		$remote_path = $ssh_path . '/';
-		$path_info = pathinfo( $source_path );
-		$dirpath = $path_info['dirname'];
-		$basename = $path_info['basename'];
-
-		$commands = array(
-			array(
-				"scp $basename.tar.gz $ssh_user@$ssh_host:$ssh_path",
-				true,
-				"Copied '$basename.tar.gz' to '$ssh_user@$ssh_host:$remote_path'.",
-				"Failed copying '$basename.tar.gz' to server."
-			),
-			array( "rm $basename.tar.gz" ),
-			array( "ssh $ssh_user@$ssh_host 'cd $ssh_path; tar -zxvf $basename.tar.gz; rm -rf $basename.tar.gz'" )
-		);
-
-		self::_archive_file( $basename, '', $dirpath );
-		self::_run_commands( $commands );
-	}
-
-	private function _rsync_files( $source_path ) {
-
-		extract( self::$_settings );
-		$remote_path = $ssh_path . '/';
 		/** TODO Manage by flag. */
 		$exclude = array(
 			'.git',
 			'cache',
 		);
+		$destination = ! is_string( $destination ) ? "$ssh_user@$ssh_host:$ssh_path/$destination" : $destination;
+		$msg = empty( $msg ) ? "Copied $source to $ssh_host:$destination" : $msg;
+		$compress = $compress ? ' -z' : '';
 
 		/** Exclude files from rsync. */
 		$exclude = '--exclude '
@@ -414,14 +393,13 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			);
 		$command = array(
 			sprintf(
-				'rsync -avz -e ssh %s %s@%s:%s %s',
-				$source_path,
-				$ssh_user,
-				$ssh_host,
-				$remote_path,
+				"rsync -av$compress -e ssh --delete %s %s %s",
+				$source,
+				$destination,
 				$exclude
 			),
-			"Copied $source_path to $ssh_host:$remote_path"
+			true,
+			$msg
 		);
 
 		self::_run_commands( $command );
