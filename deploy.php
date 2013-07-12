@@ -6,7 +6,7 @@
  * @package wp-deploy-flow
  * @author Arnaud Sellenet
  */
-/**
+/*
  * MAIN TODO: Change to args array method, and manage setting dependecies in the
  * command. Keep methods independent of the environment.
  */
@@ -212,7 +212,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		/** Add preserve file on server for rsync. */
 		extract( self::$_settings );
 		$env = self::$_env;
-		$server_file = "{$env}_pull_" . self::_get_unique_env_id() . '.sql';
+		$local_path = ABSPATH . "{$env}_pull_" . self::_get_unique_env_id();
+		$server_file = "{$env}.sql";
 		$backup_name = date( 'Y_m_d-H_i' ) . '_bk.sql';
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = self::_trim_url( get_option( 'siteurl' ) );
@@ -227,11 +228,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
 			),
 			array(
-				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $server_file",
+				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $local_path/$server_file",
 				true, 'Copied the db from server.',
 			),
 			array(
-				"wp db import $server_file",
+				"wp db import $local_path/$server_file",
 				true, 'Imported the remote db.'
 			),
 			array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ),
@@ -241,7 +242,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		/** Remove local dump only if requested. */
 		if ( $cleanup ) {
-			array_push( $commands, array( "rm $server_file", 'Removing the local dump.' ) );
+			array_push( $commands, array( "rm $local_path/$server_file", 'Removing the local dump.' ) );
 		}
 
 		if ( $backup ) {
@@ -261,7 +262,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 
 		$source = self::$_settings['uploads_path'];
-		$local_path = ABSPATH . "{$env}_pull_uploads_" . self::_get_unique_env_id();
+		$local_path = ABSPATH . "{$env}_pull_" . self::_get_unique_env_id();
 		self::_rsync( "$ssh_user@$ssh_host:$source", $local_path );
 		WP_CLI::success( "Pulled the staging 'uploads' dir to '$local_path'." );
 
