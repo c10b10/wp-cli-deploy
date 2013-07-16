@@ -184,6 +184,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	/**
 	 * @synopsis <environment> --what=<what> [--cleanup] [--no-backup]
+	 * TODO: Add backup to the same pull dir of both db and uploads
+	 * TODO: Add --deploy flag when deploy is wanted
+	 * TODO: Never remove local copies
 	 */
 	public function pull( $args, $assoc_args ) {
 
