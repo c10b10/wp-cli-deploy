@@ -231,7 +231,10 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
 			),
 			array(
-				"rsync -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $local_path/$server_file",
+				"mkdir -p $local_path"
+			),
+			array(
+				"rsync --recursive -ave ssh $ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file $local_path/$server_file",
 				true, 'Copied the db from server.',
 			),
 			array(
@@ -298,7 +301,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$out['db_password'] = escapeshellarg( $out['db_password'] );
 		if ( ! isset( $out['uploads_path'] ) ) {
 			$uploads_path = wp_upload_dir();
-			$out['uploads_path'] = trailingslashit( $out['path'] ) 
+			$out['uploads_path'] = trailingslashit( $out['path'] )
 				. substr( $uploads_path['basedir'], strlen( ABSPATH ) );
 		}
 
@@ -412,18 +415,23 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 				' --exclude ',
 				array_map( 'escapeshellarg', $exclude )
 			);
-		$command = array(
-			sprintf(
-				"rsync -av$compress -e ssh --delete %s %s %s",
-				$source,
-				$destination,
-				$exclude
+		$commands = array(
+			array(
+				"mkdir -p $destination"
 			),
-			true,
-			$msg
+			array(
+				sprintf(
+					"rsync -av$compress -e ssh --delete %s %s %s",
+					$source,
+					$destination,
+					$exclude
+				),
+				true,
+				$msg
+			),
 		);
 
-		self::_run_commands( $command );
+		self::_run_commands( $commands );
 	}
 
 	private static function _get_constants() {
