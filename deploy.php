@@ -405,17 +405,15 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 	private function _rsync( $source, $destination = false, $msg = false, $compress = true ) {
 
-		var_dump( $destination );
-		die;
 		extract( self::$_settings );
 		/** TODO Manage by flag. */
 		$exclude = array(
 			'.git',
 			'cache',
+			'.DS_Store',
+			'thumbs.db'
 		);
 		$destination = ! is_string( $destination ) ? "$ssh_user@$ssh_host:$ssh_path" : $destination;
-		var_dump( $destination );
-		die;
 		$msg = empty( $msg ) ? "Copied $source to $ssh_host:$destination" : $msg;
 		$compress = $compress ? ' -z' : '';
 
