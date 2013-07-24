@@ -77,3 +77,4 @@ subcommands
 * Removed removal of sql dump from server.
 
 See the issue tracker for more info about what's planned.
+
