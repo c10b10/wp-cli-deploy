@@ -234,6 +234,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		if ( $siteurl == $url )
 			unset( $commands[1] );
 
+		if ( $abspath == $path )
+			unset( $commands[2] );
+
+		if ( ! isset( $commands[1] ) && ! isset( $commands[2] ) )
+			unset( $commands[4] );
+
 		self::_run_commands( $commands );
 	}
 
