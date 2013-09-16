@@ -244,7 +244,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Pulls the database and / or uploads from remote to local. After pulling 
+	 * Pulls the database and / or uploads from remote to local. After pulling
 	 * the uploads, they need to copied to the correct location.
 	 *
 	 * <environment>
@@ -257,15 +257,19 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
 	 * the uploads folder).
 	 *
+	 * `--backup`=<backup>
+	 * : Optional. Wether the local db should be backup up beofore importing
+	 * the new db. Defaults to true.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *    # Pulls database and uploads folder
 	 *    wp deploy pull staging --what=db,uploads
 	 *
-	 *    # Deploy uploads using rsync
-	 *    wp deploy push staging --what=uploads
+	 *    # Pull the remote db without prior local backup
+	 *    wp deploy pull staging --what=db --backup=false
 	 *
-	 * @synopsis <environment> --what=<what> [--cleanup] [--no-backup]
+	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>]
 	 */
 	public function pull( $args, $assoc_args ) {
 
@@ -285,8 +289,11 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			$args = array( false, true );
 			if ( ! empty( $assoc_args['cleanup'] ) )
 				$args[0] = true;
-			if ( ! empty( $assoc_args['no-backup'] ) )
-				$args[1] = false;
+			if ( isset( $assoc_args['backup'] ) ) {
+				$backup = filter_var( $assoc_args['backup'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE );
+				if ( isset( $backup ) )
+					$args[1] = $backup;
+			}
 
 			if ( method_exists( __CLASS__, "_pull_$item" ) ) {
 				call_user_func_array( "self::_pull_$item", $args );
@@ -326,12 +333,10 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 				"wp db import $local_path/$server_file",
 				true, 'Imported the remote db.'
 			),
-			array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ),
-			array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ),
 			array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_file'" ),
 		);
 
-		/** Remove local dump only if requested. */
+		/** Remove local dump only if requested. TODO Why? */
 		if ( $cleanup ) {
 			array_push( $commands, array( "rm $local_path/$server_file", 'Removing the local dump.' ) );
 		}
@@ -344,6 +349,12 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		}
 
 		self::_run_commands( $commands );
+
+		if ( $siteurl != $url )
+			self::_run_commands( array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ) );
+
+		if ( $path != $abspath )
+			self::_run_commands( array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ) );
 	}
 
 	private static function _pull_uploads( $cleanup = false, $backup = true ) {
