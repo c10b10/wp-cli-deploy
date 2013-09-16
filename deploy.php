@@ -45,7 +45,28 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	);
 
 	/**
-	 * Push local to remote.
+	 * Pushes the local database and / or uploads from local to remote.
+	 *
+	 * ## OPTIONS
+
+	 * <environment>
+	 * : The name of the environment. This is the prefix of the constants defined in
+	 * wp-config.
+	 *
+	 * `--what`=<what>
+	 * : What needs to be dumped. Suports multiple comma sepparated values. Valid
+	 * options are: 'db' (dumps the databse with the url and paths replaced) and
+	 * 'uploads' (creates an archive of the uploads folder in the current directory).
+	 *
+	 * [`--file`=<file>]
+	 * : [REMOVED] Optional. What should the dump be called. Default: '%date_time% _%env%.sql' for 'db', 'uploads.tar.gz' for
+	 * 'uploads'.
+
+	 * ## EXAMPLE
+
+	 *    # Dumps database for to "staging" environment. You must have STAGING_*
+	 *    # constants defined for this to work
+	 *    wp deploy dump staging --what=db
 	 *
 	 * @synopsis <environment> --what=<what> [--upload=<upload>] [--cleanup] [--safe]
 	 */
@@ -98,7 +119,29 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Dump a db or the uploads dir.
+	 * Dumps the local database and / or uploads from local to remote. The
+	 * database will be prepared for upload to the specified environment.
+	 *
+	 * ## OPTIONS
+
+	 * <environment>
+	 * : The name of the environment. This is the prefix of the constants defined in
+	 * wp-config.php.
+	 *
+	 * `--what`=<what>
+	 * : What needs to be dumped. Suports multiple comma sepparated values. Valid
+	 * options are: 'db' (dumps the databse with the url and paths replaced) and
+	 * 'uploads' (creates an archive of the uploads folder in the current directory).
+	 *
+	 * [`--file`=<file>]
+	 * : [REMOVED] Optional. What should the dump be called. Default: '%date_time% _%env%.sql' for 'db', 'uploads.tar.gz' for
+	 * 'uploads'.
+
+	 * ## EXAMPLE
+
+	 *    # Dumps database for to "staging" environment. You must have STAGING_*
+	 *    # constants defined for this to work
+	 *    wp deploy dump staging --what=db
 	 *
 	 * @synopsis <environment> --what=<what> [--file=<file>]
 	 */
@@ -189,12 +232,36 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * Pulls the database and / or uploads from remote to local. After pulling 
+	 * the uploads, they need to copied to the correct location.
+	 *
+	 * <environment>
+	 * : The name of the environment. This is the prefix of the constants defined in
+	 * wp-config.
+	 *
+	 * `--what`=<what>:
+	 * : What needs to be pull. Suports multiple comma sepparated values. This
+	 * determines the order of execution for deployments. Valid options are: 'db'
+	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
+	 * the uploads folder).
+	 *
+	 * ## EXAMPLES
+	 *
+	 *    # Pulls database and uploads folder
+	 *    wp deploy pull staging --what=db,uploads
+	 *
+	 *    # Deploy uploads using rsync
+	 *    wp deploy push staging --what=uploads
+	 *
 	 * @synopsis <environment> --what=<what> [--cleanup] [--no-backup]
-	 * TODO: Add backup to the same pull dir of both db and uploads
-	 * TODO: Add --deploy flag when deploy is wanted
-	 * TODO: Never remove local copies
 	 */
 	public function pull( $args, $assoc_args ) {
+
+		/**
+		 * TODO: Add backup to the same pull dir of both db and uploads
+		 * TODO: Add --deploy flag when deploy is wanted
+		 * TODO: Never remove local copies
+		 */
 
 		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
 
@@ -485,4 +552,3 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 }
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Flow_Command' );
-WP_CLI::add_man_dir( __DIR__ . '/man', __DIR__ . '/man-src' );
