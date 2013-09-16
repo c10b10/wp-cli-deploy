@@ -72,6 +72,8 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 */
 	public function push( $args, $assoc_args ) {
 
+		/** TODO: See about those extra cleanup, safe, etc. */
+
 		self::$_settings = self::_get_sanitized_args( $args, $assoc_args );
 
 		if ( self::$_settings['locked'] === true ) {
@@ -201,6 +203,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		$uploads_dir = wp_upload_dir();
 
 		$uploads_path = self::$_settings['archive'] ? self::_dump_uploads() : $uploads_dir['basedir'];
+		$uploads_path = self::_launch( "cd $uploads_path; pwd -P;" );
 
 		$settings = self::$_settings;
 		$destination = empty( $args['safe'] ) ? "{$settings['ssh_user']}@{$settings['ssh_host']}:{$settings['uploads_path']}" : false;
@@ -227,6 +230,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 			array( "wp db import $backup_file", true, 'Imported local backup.' ),
 			array( "rm $backup_file", 'Removed backup file.' )
 		);
+
+		if ( $siteurl == $url )
+			unset( $commands[1] );
 
 		self::_run_commands( $commands );
 	}
@@ -468,6 +474,23 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		} else {
 			WP_CLI::line( "Success: $success" );
 		}
+	}
+
+	private static function _launch( $command ) {
+
+		$cwd = null;
+		$descriptors = array(
+			0 => array( 'pipe', 'r' ),
+			1 => array( 'pipe', 'w' ),
+		);
+		$pipes = array();
+		$handler = proc_open( $command, $descriptors, $pipes, $cwd );
+
+		$output = stream_get_contents( $pipes[1] );
+
+		proc_close( $handler );
+
+		return trim( $output );
 	}
 
 	private function _rsync( $source, $destination = false, $msg = false, $compress = true ) {
