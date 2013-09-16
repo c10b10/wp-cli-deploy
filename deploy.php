@@ -61,9 +61,9 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 	 * [`--file`=<file>]
 	 * : [REMOVED] Optional. What should the dump be called. Default: '%date_time% _%env%.sql' for 'db', 'uploads.tar.gz' for
 	 * 'uploads'.
-
+	 *
 	 * ## EXAMPLE
-
+	 *
 	 *    # Dumps database for to "staging" environment. You must have STAGING_*
 	 *    # constants defined for this to work
 	 *    wp deploy dump staging --what=db
