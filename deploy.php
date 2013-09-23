@@ -188,7 +188,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		if ( ! empty( $args['cleanup'] ) ) {
 			array_push( $commands, array( "ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; rm $server_file'" ) );
 		} else {
-			WP_CLI::line( "\n=Deploying the uploads to server." );
+			WP_CLI::line( "\n=Deploying the database to server." );
 		}
 
 		self::_dump_db( $dump_file );
@@ -319,7 +319,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		$commands = array(
 			array(
-				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host $db_name > $server_file'",
+				"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysqldump --user=$db_user --password=$db_password --host=$db_host --add-drop-table $db_name > $server_file'",
 				true, "Dumped the remote db to $server_file.", 'Failed dumping the remote db.'
 			),
 			array(
