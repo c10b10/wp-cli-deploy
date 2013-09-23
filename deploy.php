@@ -363,7 +363,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 
 		WP_CLI::line( "\n=Deploying the uploads to server." );
 
-		$source = self::$_settings['uploads_path'];
+		$source = trailingslashit( self::$_settings['uploads_path'] ) . 'uploads';
 		$local_path = ABSPATH . "{$env}_pull_" . self::_get_unique_env_id();
 		self::_rsync( "$ssh_user@$ssh_host:$source", $local_path );
 		WP_CLI::success( "Pulled the staging 'uploads' dir to '$local_path'." );
