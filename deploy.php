@@ -351,7 +351,7 @@ class WP_Deploy_Flow_Command extends WP_CLI_Command {
 		self::_run_commands( $commands );
 
 		if ( $siteurl != $url )
-			self::_run_commands( array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $site on imported db." ) );
+			self::_run_commands( array( "wp search-replace --network $url $siteurl", true, "Replaced $url with $siteurl on imported db." ) );
 
 		if ( $path != $abspath )
 			self::_run_commands( array( "wp search-replace --network $path $abspath", true, "Replaced $path with with $abspath on local db." ) );
