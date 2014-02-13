@@ -292,7 +292,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				$dump_file,
 				"$c->ssh:$c->path/$server_file"
 			),
-			'Uploaded the database to the server.',
+			'Uploaded the database file to the server.',
             'Failed to upload the database to the server'
 		);
 
@@ -304,7 +304,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
             . " mysql --user=$c->db_user --password=$c->db_password --host=$c->db_host"
             . " $c->db_name < $server_file'",
 			'Deployed the database on server.',
-			'Failed deploying the db to server.'
+			'Failed deploying the db on server.'
 		);
 
 		$runner->run();
@@ -410,7 +410,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				"$c->ssh:$c->uploads/",
 				"$c->local_uploads"
 			),
-			"Pulled the $c->env uploads locally."
+			"Pulled the '$c->env' uploads locally."
 		);
 
         $runner->run();
@@ -432,35 +432,36 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
 			"wp db export $c->tmp",
-			'Exported local backup.'
+			"Exported a local backup of the database to '$c->tmp'."
 		);
 
 		$runner->add(
 			( $c->siteurl != $c->url ),
 			"wp search-replace --network $c->siteurl $c->url",
-			"Replaced $c->siteurl with $c->url on local database."
+			"Replaced '$c->siteurl' with '$c->url' in local database."
 		);
 
 		$runner->add(
 			( $c->abspath != $c->wp ),
 			"wp search-replace --network $c->abspath $c->wp",
-			"Replaced $c->abspath with with $c->wp on local db."
+			"Replaced '$c->abspath' with with '$c->wp' in local database."
 		);
 
 		$runner->add(
 			"wp db export $path",
-			"Dumped the database to $path"
+			"Dumped the database to '$path'."
 		);
 
 		$runner->add(
 			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
 			"wp db import $c->tmp",
-			'Imported local backup.'
+			'Imported the local backup.'
 		);
 
 		$runner->add(
 			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
-			"rm -f $c->tmp"
+			"rm -f $c->tmp",
+			'Cleaned up.'
 		);
 
 		$runner->run();
@@ -585,7 +586,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	private static function wow() {
 		$doge = array( 'wow', 'many', 'such', 'so' );
 		$words = array( 'finish', 'done', 'end', 'deploy' );
-		WP_Cli::line( "\n" );
+		WP_CLI::line('');
 		WP_Cli::success(
 			$doge[array_rand( $doge, 1 )] . ' ' .
 			$words[array_rand( $words, 1 )] . '!'
