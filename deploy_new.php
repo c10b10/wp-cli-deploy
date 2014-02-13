@@ -42,8 +42,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
     /**
      * TODO:
-     * Verbosity
      * Post push
+	 * Update paths in messages to be relative to wordpress dir.
      */
 
 	/** The config holder. */
@@ -183,6 +183,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
             call_user_func( "$class::push_$item" );
         }, explode( ',', $assoc_args['what'] ) );
 		$what = explode( ',', $assoc_args['what'] );
+
+		self::wow();
 	}
 
 	/**
@@ -233,6 +235,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
             call_user_func( "$class::pull_$item" );
         }, explode( ',', $assoc_args['what'] ) );
 		$what = explode( ',', $assoc_args['what'] );
+
+		self::wow();
 	}
 
 	/**
@@ -268,6 +272,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
         }
 
         self::dump_db();
+
+		self::wow();
 	}
 
 
@@ -286,7 +292,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				$dump_file,
 				"$c->ssh:$c->path/$server_file"
 			),
-			'Uploading the database to the server.',
+			'Uploaded the database to the server.',
             'Failed to upload the database to the server'
 		);
 
@@ -297,7 +303,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
             "ssh $c->ssh 'cd $c->path;"
             . " mysql --user=$c->db_user --password=$c->db_password --host=$c->db_host"
             . " $c->db_name < $server_file'",
-			'Deploying the database on server.',
+			'Deployed the database on server.',
 			'Failed deploying the db to server.'
 		);
 
@@ -340,8 +346,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
             "ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
             . " mysqldump --user=$c->db_user --password=$c->db_password --host=$c->db_host"
             . " --add-drop-table $c->db_name > $server_file'",
-			"Dumped the remote database to $c->path.",
-			'Failed dumping the remote db.'
+			"Dumped the remote database to '$c->path/$server_file' on the server.",
+			'Failed dumping the remote database.'
 		);
 
 		$runner->add(
@@ -350,7 +356,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				"$c->wd/$server_file",
                 false, false // No delete or compression
 			),
-			'Copied the database from the server.'
+			"Copied the database from the server to '$c->wd/$server_file'."
 		);
 
         $runner->add(
@@ -362,24 +368,24 @@ class WP_Deploy_Command extends WP_CLI_Command {
         $runner->add(
             ! isset( $c->safe_mode ),
             "wp db export $c->bk_path/$c->timestamp.sql",
-            "Backed up local database to $c->bk_path/$c->timestamp.sql"
+            "Backed up local database to '$c->bk_path/$c->timestamp.sql'"
         );
 
         $runner->add(
             "wp db import $c->wd/$server_file",
-            'Imported the remote db.'
+            'Imported the remote database.'
         );
 
         $runner->add(
             ( $c->siteurl != $c->url ),
             "wp search-replace --network $c->url $c->siteurl",
-            "Replaced $c->url with $c->siteurl on imported database."
+            "Replaced '$c->url' with '$c->siteurl' on the imported database."
         );
 
 		$runner->add(
 			( $c->abspath != $c->wp ),
 			"wp search-replace --network $c->wp $c->abspath",
-			"Replaced $c->wp with $c->abspath on local database."
+			"Replaced '$c->wp' with '$c->abspath' on local database."
 		);
 
         $runner->run();
@@ -574,6 +580,16 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
         /** Return the config in object form. */
 		return (object) $config;
+	}
+
+	private static function wow() {
+		$doge = array( 'wow', 'many', 'such', 'so' );
+		$words = array( 'finish', 'done', 'end', 'deploy' );
+		WP_Cli::line( "\n" );
+		WP_Cli::success(
+			$doge[array_rand( $doge, 1 )] . ' ' .
+			$words[array_rand( $words, 1 )] . '!'
+		);
 	}
 }
 
