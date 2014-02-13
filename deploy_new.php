@@ -52,6 +52,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 
 		self::$config = array(
+            'env' => '%%env%%',
+
             /** Constants which refer to remote. */
             'host' => '%%host%%',
             'user' => '%%user%%',
@@ -63,12 +65,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
             'db_name' => '%%db_name%%',
             'db_user' => '%%db_user%%',
             'db_password' => '%%db_password%%',
+
             /** Helpers which refer to local. */
             'abspath' => '%%abspath%%',
 			'wd' => '%%abspath%%/%%env%%_%%hash%%',
+            'timestamp' => '%%pretty_date%%',
 			'tmp_path' => '%%wd%%/tmp',
 			'tmp' => '%%tmp_path%%/%%rand%%',
-			'bk' => '%%wd%%/%%hostname%%_%%pretty_date%%',
+            'local_hostname' => '%%hostname%%',
 			'ssh' => '%%user%%@%%host%%',
             'local_uploads' => '%%local_uploads%%',
             'siteurl' => '%%siteurl%%',
@@ -84,6 +88,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		/** Expand the paths placeholders. */
         self::$config = self::expand( self::$config, $constants );
+
+        /** Create paths. */
+        Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
 
         return $args;
 	}
@@ -186,51 +193,57 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		if ( ! $args )
 			return false;
 
-		self::dump_db( 'bk_db.sql' );
+		/* self::dump_db( 'bk_db.sql' ); */
+        self::push_db();
 	}
 
 	private function push_db() {
 
-		extract( self::$_settings );
-		$env = self::$_env;
-		$backup_name = time() . "_$env";
-		$server_file = "{$env}_push_" . self::_get_unique_env_id() . '.sql';
+        $c = self::$config;
 
-		WP_CLI::line( "Pushing your databse to {self::$env}." );
-
-		$dump_file = self::dump_db();
+        $dump_file = self::dump_db( array( 'wd' => $c->tmp_path ) );
+        $server_file = "{$c->local_hostname}_{$c->env}.sql";
 
 		$runner = new Runner();
 
 		$runner->add(
 			Util::get_rsync(
 				$dump_file,
-				"$ssh_db_user@$ssh_db_host:$ssh_db_path/$server_file"
+				"$c->ssh:$c->path/$server_file"
 			),
-			$message
+			'Uploading the database to the server.',
+            'Failed to upload the database to the server'
 		);
 
+		$runner->add( "rm -f $dump_file" );
+
 		$runner->add(
-			"ssh $ssh_db_user@$ssh_db_host 'cd $ssh_db_path; mysql --user=$db_user --password=$db_password --host=$db_host $db_name < $server_file'",
-			'Deploying the db on server.',
+            "ssh $c->ssh 'cd $c->path;"
+            . " mysql --user=$c->db_user --password=$c->db_password --host=$c->db_host"
+            . " $c->db_name < $server_file'",
+			'Deploying the database on server.',
 			'Failed deploying the db to server.'
 		);
 
-		$runner->add(
-			"rm $dump_file",
-			'Removing the local dump.'
-		);
 
-		$runner->run();
+        var_dump( $runner->commands );
+		/* $runner->run(); */
 	}
 
-	private static function dump_db( $dump_file ) {
+	private static function dump_db( $args = array() ) {
 
         $c = self::$config;
+
+        $args = wp_parse_args( $args, array(
+            'name' => "{$c->env}_{$c->timestamp}",
+            'wd' => $c->wd
+        ) );
+        $path = "{$args['wd']}/{$args['name']}.sql";
+
 		$runner = new Runner();
 
 		$runner->add(
-			( $c->abspath != $c->path ) || ( $c->url != $c->siteurl ),
+			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
 			"wp db export $c->tmp",
 			'Exported local backup.'
 		);
@@ -242,32 +255,30 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		);
 
 		$runner->add(
-			( $c->abspath != $c->path ),
-			"wp search-replace --network $c->abspath $c->path",
-			"Replaced $c->abspath with with $c->path on local db."
+			( $c->abspath != $c->wp ),
+			"wp search-replace --network $c->abspath $c->wp",
+			"Replaced $c->abspath with with $c->wp on local db."
 		);
 
 		$runner->add(
-			"wp db export {$c->tmp_path}/$dump_file",
-			"Dumped the deployable database to {$c->wd}/$dump_file"
+			"wp db export $path",
+			"Dumped the database to $path"
 		);
 
 		$runner->add(
-			( $c->abspath != $c->path ) || ( $c->url != $c->siteurl ),
+			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
 			"wp db import $c->tmp",
 			'Imported local backup.'
 		);
 
 		$runner->add(
-			( $c->abspath != $c->path ) || ( $c->url != $c->siteurl ),
+			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
 			"rm -f $c->tmp"
 		);
 
-		var_dump( $runner->commands );
+		$runner->run();
 
-		/* $runner->run(); */
-
-		return 'dumpfile';
+        return $path;
 	}
 
 	private function push_uploads( $args ) {
