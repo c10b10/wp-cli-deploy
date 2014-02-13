@@ -42,6 +42,17 @@ class WP_Deploy_Command extends WP_CLI_Command {
                     'db_password',
 				),
 				'pull' => array(
+                    // DEV
+                    'host',
+                    'user',
+                    'path',
+                    'url',
+                    'wp_path',
+                    'uploads_path',
+                    'db_host',
+                    'db_name',
+                    'db_user',
+                    'db_password',
 				),
 				'dump' => array(
 					'wp_path',
@@ -65,6 +76,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
             'db_name' => '%%db_name%%',
             'db_user' => '%%db_user%%',
             'db_password' => '%%db_password%%',
+            /** TODO Safe mode for all commands */
 
             /** Helpers which refer to local. */
             'abspath' => '%%abspath%%',
@@ -284,9 +296,69 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>]
 	 */
 	public function pull( $args, $assoc_args ) {
-        self::pull_db();
-        /* self::push_uploads(); */
+
+		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+
+		if ( ! $args )
+			return false;
+
+        /* self::pull_db(); */
+        self::pull_uploads();
 	}
+
+    public function pull_db() {
+
+        $c = self::$config;
+
+        $server_file = "{$c->env}_{$c->timestamp}.sql";
+
+		$runner = new Runner();
+
+		$runner->add(
+            "ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
+            . " mysqldump --user=$c->db_user --password=$c->db_password --host=$c->db_host"
+            . " $c->db_name --add-drop-table $c->db_name > $server_file'",
+			"Dumped the remote database to $c->path.",
+			'Failed dumping the remote db.'
+		);
+
+		$runner->add(
+			Util::get_rsync(
+				"$c->ssh:$c->path/$server_file",
+				"$c->wd/$server_file"
+			),
+			'Copied the database from the server.'
+		);
+
+        /** TODO Finalize safe mode. */
+        $runner->add(
+            isset( $c->safe_mode ),
+            "wp db export $c->wd/$c->timestamp.sql"
+        );
+
+        $runner->add(
+            "wp db import $c->wd/$server_file",
+            'Imported the remote db.'
+        );
+
+        $runner->add(
+            ( $c->siteurl != $c->url ),
+            "wp search-replace --network $c->url $c->siteurl",
+            "Replaced $c->url with $c->siteurl on imported database."
+        );
+
+		$runner->add(
+			( $c->abspath != $c->wp ),
+			"wp search-replace --network $c->wp $c->abspath",
+			"Replaced $c->wp with $c->abspath on local database."
+		);
+
+        var_dump( $runner );
+        /* $runner->run(); */
+    }
+
+    public function pull_uploads() {
+    }
 
 	/**
 	 * Dumps the local database and / or uploads from local to remote. The
