@@ -23,6 +23,10 @@ define( 'DEV_DB_PASSWORD', 'the_remote_db_passoword' );
 
 You can define as many constant groups as deployment eviroments you wish to have.
 
+Not all commands / subcommands require all constants to be defined. To test what 
+a subcommand requires, execute it with a non-existing environment handle. e.g.
+`wp deploy dump johndoe`.
+
 TODO: Explain subcommands <-> constants dependency
 
 ## EXAMPLES

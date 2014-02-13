@@ -25,6 +25,10 @@ use \WP_Deploy_Command\Command_Runner as Runner;
  *
  * => wp deploy push dev ...
  *
+ * Not all commands / subcommands require all constants to be defined. To test what
+ * a subcommand requires, execute it with a non-existing environment handle. e.g.
+ * `wp deploy dump johndoe`.
+ *
  * You can define as many constant groups as deployment eviroments you wish to have.
  *
  * TODO: Explain subcommands <-> constants dependency
