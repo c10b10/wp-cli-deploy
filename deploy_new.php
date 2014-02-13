@@ -297,12 +297,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner = new Runner();
 
         /** TODO safe mode */
-        $path = ! isset( $c->safe_mode ) ? $c->path : $c->uploads;
+        $path = isset( $c->safe_mode ) ? $c->path : $c->uploads;
 
 		$runner->add(
 			Util::get_rsync(
                 // When pushing safe, we push the dir, hence no trailing slash
-                "$c->local_uploads",
+                "$c->local_uploads/",
 				"$c->ssh:$path"
 			),
 			"Synced local uploads to '$path' on '$c->host'.",
