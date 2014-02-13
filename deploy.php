@@ -1,4 +1,6 @@
 <?php
+if ( ! defined( 'WP_CLI' ) ) return;
+
 require 'helpers.php';
 require 'runner.php';
 use \WP_Deploy_Command\Helpers as Util;
