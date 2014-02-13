@@ -37,3 +37,7 @@ TODO: Explain subcommands <-> constants dependency
     # Dump the local db with the siteurl replaced
     wp deploy dump andrew
 ```
+
+#### Credits
+
+https://github.com/demental/wp-deploy-flow for inspiration.
