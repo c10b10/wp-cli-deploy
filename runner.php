@@ -19,10 +19,10 @@ class Command_Runner {
 	 * [fail_message] : string (Default: none)
 	 *
 	 * - If present condition needs to be first.
-	 * - Command can either be a string, or an array containing the 
+	 * - Command can either be a string, or an array containing the
 	 * command string and the working directory in which it will be exec
 	 * - Exit on failure needs to be boolean. If missing, it's set as true
-	 * - The success and fail messages need to be strings and always in 
+	 * - The success and fail messages need to be strings and always in
 	 * this order.
 	 *
 	 * [args] (bracketed arguments) are optional.
@@ -93,6 +93,22 @@ class Command_Runner {
 		} else {
 			\WP_CLI::line( "Success: $success" );
 		}
+	}
+
+	public static function get_result( $command ) {
+		$cwd = null;
+		$descriptors = array(
+			0 => array( 'pipe', 'r' ),
+			1 => array( 'pipe', 'w' ),
+		);
+		$pipes = array();
+		$handler = proc_open( $command, $descriptors, $pipes, $cwd );
+
+		$output = stream_get_contents( $pipes[1] );
+
+		proc_close( $handler );
+
+		return trim( $output );
 	}
 
 }

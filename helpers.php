@@ -78,4 +78,10 @@ class Helpers {
 
 		return $domain;
 	}
+
+	/** Returns and unique hash to identify the environment. */
+	static function get_hash() {
+		$siteurl = self::trim_url( get_option( 'siteurl' ) );
+		return substr( sha1( DB_NAME . $siteurl ), 0, 8 );
+	}
 }

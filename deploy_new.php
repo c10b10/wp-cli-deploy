@@ -6,6 +6,11 @@ use \WP_Deploy_Command\Command_Runner as Runner;
 
 class WP_Deploy_Command extends WP_CLI_Command {
 
+	/** The config holder. */
+	private static $c;
+
+	private static $fs;
+
 	private static $config_dependencies;
 
 	private static $env;
@@ -19,15 +24,29 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			),
 			'commands' => array(
 				'push' => array(
-					'url'
+					'url',
+					'wp_path'
 				),
 				'pull' => array(
 				),
 				'dump' => array(
+					'wp_path',
+					'url'
 				),
 			)
 		);
+
+		/**
+		 * Depending paths need to be under the
+		 * paths they depend on.
+		 */
+		self::$fs = array(
+			'wd' => '%%abspath%%/%%env%%_%%hash%%',
+			'tmp' => '%%wd%%/tmp/%%rand%%',
+			'bk' => '%%wd%%/%%hostname%%_%%pretty_date%%',
+		);
 	}
+
 
 /* define( 'DEV_URL', 'themes.portfolio.w3-edge.com' ); */
 /* define( 'DEV_PATH', '/media/AuctolloProd/auctollo_production/portfolio/dev/wordpress' ); */
@@ -44,8 +63,31 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		self::$env = $args[0];
 
-		if ( ! self::validate_config( $command, self::$env ) )
-			return false;
+		/** See if all required constants are defined. */
+		self::validate_config( $command, self::$env );
+
+		/** Expand the paths placeholders. */
+		self::expand_paths( self::$fs );
+	}
+
+	/** Replace the placeholders in the paths with actual data. */
+	private static function expand_paths( &$paths ) {
+
+		$fs_data = array(
+			'env' => self::$env,
+			'hash' => Util::get_hash(),
+			'abspath' => untrailingslashit( ABSPATH ),
+			'pretty_date' => date( 'Y_m_d-H_i' ),
+			'rand' => substr( sha1( time() ), 0, 8 ),
+			'hostname' => Runner::get_result( "hostname" ),
+		);
+
+		foreach ( $paths as &$item ) {
+			$item = Util::unplaceholdit( $item, $fs_data + array(
+				/** This ensures that we can have dependencies. */
+				'wd' => $paths['wd']
+			) );
+		}
 
 	}
 
@@ -61,20 +103,28 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		) );
 
 		$errors = array();
+		$config = array();
 		foreach ( $required_constants as $const ) {
 			/** The constants template */
 			$required_constant = strtoupper( $env . '_' . $const );
+			var_dump( $required_constant );
 			if ( ! defined( $required_constant ) ) {
-				$errors[] = "$required_constant is not defined";
+				$errors[] = "Required constant $required_constant is not defined.";
+			} else {
+				$config[$required_constant] = constant( $required_constant );
 			}
 		}
 
 		if ( count( $errors ) ) {
 			foreach ( $errors as $error ) {
-				WP_Cli::error( $error );
+				WP_Cli::line( "$error" );
 			}
+			WP_Cli::error( 'The missing contants are required in order to run this subcommand.' );
 			return false;
 		}
+
+		/** Save the config. */
+		self::$c = json_decode( json_encode( $config ), false );
 
 		return true;
 	}
@@ -106,6 +156,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
+		var_dump( self::$fs );
+		die;
+
+		if ( ! $args )
+			return false;
+
 		self::dump_db();
 	}
 
@@ -118,7 +174,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		WP_CLI::line( "Pushing your databse to {self::$env}." );
 
-		$dump_file = self::_dump_db();
+		$dump_file = self::dump_db();
 
 		$runner = new Runner();
 
@@ -148,8 +204,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$backup_file = 'x';//self::_get_temp_bk( '.sql' );
 		$abspath = untrailingslashit( ABSPATH );
 		$siteurl = untrailingslashit( Util::trim_url( get_option( 'siteurl' ) ) );
-		$path = $abspath;//untrailingslashit( self::$_settings['path'] );
-		$url = $siteurl;//untrailingslashit( self::$_settings['url'] );
+		$path = self::$c->wp_path;
+		$url = self::$c->url;
 
 		$runner = new Runner();
 
@@ -188,7 +244,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'Imported local backup.'
 		);
 
-		$runner->run();
+		var_dump( $runner->commands );
+
+		/* $runner->run(); */
 
 		return 'dumpfile';
 	}
@@ -256,7 +314,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 */
 	public function dump( $args, $assoc_args ) {
 	}
-
 
 	private static function _get_bk( $suffix = '' ) {
 		$id = self::_launch( "hostname;" );
