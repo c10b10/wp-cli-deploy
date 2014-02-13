@@ -49,14 +49,20 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	/** The config holder. */
 	private static $config;
 
-	private static $config_dependencies;
-
 	private static $env;
 
+	private static $default_verbosity;
+
+	private static $runner;
+
+	private static $config_dependencies;
+
 	public function __construct() {
-        if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+        if ( 1 || defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
             ini_set( 'display_errors', 'STDERR' );
         }
+
+		self::$default_verbosity = 1;
 
 		/** Define the constants dependencies. */
         self::$config_dependencies = array(
@@ -148,6 +154,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
      *      db: pushes the database to the remote server
 	 *      uploads: pushes the uploads to the remote server
 	 *
+	 * [`--v`=<v>]
+	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
+	 *
 	 * ## EXAMPLE
 	 *
 	 *    # Push the database and the uploads for to "staging" environment.
@@ -155,7 +164,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 *
 	 *    wp deploy push staging --what=db,uploads
 	 *
-	 * @synopsis <environment> --what=<what>
+	 * @synopsis <environment> --what=<what> [--v=<v>]
 	 */
 	public function push( $args, $assoc_args ) {
 
@@ -194,6 +203,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * : Optional. Wether the local db should be backup up beofore importing
 	 * the new db. Defaults to true.
 	 *
+	 * [`--v`=<verbosity>]
+	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *    # Pulls database and uploads folder
@@ -202,7 +214,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 *    # Pull the remote db without prior local backup
 	 *    wp deploy pull staging --what=db --backup=false
 	 *
-	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>]
+	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>] [--v=<v>]
 	 */
 	public function pull( $args, $assoc_args ) {
 
@@ -235,13 +247,16 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 *
 	 * [`--what`=<what>]
 	 * : What needs to be dumped. Currently, only the "db" option is supported.
+
+	 * [`--v`=<v>]
+	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
 	 *
 	 * ## EXAMPLE
 	 *
      *    # Dumps database for to "staging" environment.
      *    wp deploy dump staging --what=db
 	 *
-	 * @synopsis <environment> [--what=<what>] [--file=<file>]
+	 * @synopsis <environment> [--what=<what>] [--file=<file>] [--v=<v>]
 	 */
 	public function dump( $args, $assoc_args ) {
 
@@ -264,7 +279,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
         $dump_file = self::dump_db( array( 'wd' => $c->tmp_path ) );
         $server_file = "{$c->local_hostname}_{$c->env}.sql";
 
-		$runner = new Runner();
+		$runner = self::$runner;
 
 		$runner->add(
 			Util::get_rsync(
@@ -294,7 +309,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
         $c = self::$config;
 
-		$runner = new Runner();
+		$runner = self::$runner;
 
         /** TODO safe mode */
         $path = isset( $c->safe_mode ) ? $c->path : $c->uploads;
@@ -319,7 +334,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
         $server_file = "{$c->env}_{$c->timestamp}.sql";
 
-		$runner = new Runner();
+		$runner = self::$runner;
 
 		$runner->add(
             "ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
@@ -375,7 +390,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
         $c = self::$config;
 
-		$runner = new Runner();
+		$runner = self::$runner;
 
         /** TODO Finalize safe mode. */
         $runner->add(
@@ -406,7 +421,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
         ) );
         $path = "{$args['wd']}/{$args['name']}.sql";
 
-		$runner = new Runner();
+		$runner = self::$runner;
 
 		$runner->add(
 			( $c->abspath != $c->wp ) || ( $c->url != $c->siteurl ),
@@ -461,6 +476,15 @@ class WP_Deploy_Command extends WP_CLI_Command {
             }
         }
 
+		/**
+		 * Eeeek! So ugly.
+		 * TODO. Fix this.
+		 */
+		$verbosity = self::$default_verbosity;
+		if ( isset( $assoc_args['v'] ) && in_array( $assoc_args['v'], range( 0, 2 ) ) )
+			$verbosity = $assoc_args['v'];
+		self::$runner = new Runner( $verbosity );
+
         /** Get the environmental and set the tool config. */
         $subcommand = in_array( $command, array( 'push', 'pull' ) ) ? $assoc_args['what'] : '';
         $constants = self::validate_config( $command, $subcommand, self::$env );
@@ -471,6 +495,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
         Runner::get_result( 'mkdir -p ' . self::$config->bk_path . ';' );
 
         return $args;
+	}
+
+	/** Determines the verbosity level: 1, 2, or 3 */
+	private static function get_verbosity( $string, $default ) {
+		$number = count_chars_unicode( $string, 'v' );
+		if ( $number )
+			return min( $number, 2 );
+		return $default;
 	}
 
 	/**

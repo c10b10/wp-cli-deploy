@@ -4,9 +4,11 @@ namespace WP_Deploy_Command;
 class Command_Runner {
 
 	public $commands;
+	public static $verbosity;
 
-	function __construct() {
+	function __construct( $v ) {
 		$this->commands = array();
+		self::$verbosity = $v;
 	}
 
 	/**
@@ -68,23 +70,39 @@ class Command_Runner {
 	}
 
 	function run() {
-		foreach ( $this->commands as $command ) {
+		foreach ( $this->commands as $key => $command ) {
 			if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
 				ini_set( 'display_errors', 'STDERR' );
 				var_dump( $command ); //['command'] );
 			} else {
 				self::launch( $command );
 			}
+			/** Remove command from queue. */
+			unset( $this->commands[$key] );
 		}
 	}
 
 	private static function launch( $meta ) {
 
-		if ( $meta['cwd'] ) {
-			$code = proc_close( proc_open( $meta['command'], array( STDIN, STDOUT, STDERR ), $pipes, $cwd ) );
-		} else {
-			$code = proc_close( proc_open( $meta['command'], array( STDIN, STDOUT, STDERR ), $pipes ) );
-		}
+		$command = $meta['command'];
+
+		$verbosity = self::$verbosity;
+		$descriptors = call_user_func( function() use ( $verbosity, $command ) {
+			$options = array(
+				0 => array( STDIN, STDOUT, STDERR ),
+				1 => array( STDIN, array( 'pipe', 'r' ), STDERR ),
+				2 => array( STDIN, array( 'pipe', 'r' ), STDERR ),
+			);
+			/** For level 1, make an exception of blocking for rsync. */
+			if ( strpos( $command, 'rsync' ) !== false )
+				$options[1] = array( STDIN, STDOUT, STDERR );
+
+			return $options[$verbosity];
+		} );
+
+		$cwd = $meta['cwd'] ? $meta['cwd'] : null;
+
+		$code = proc_close( proc_open( $command, $descriptors, $pipes, $cwd ) );
 
 		if ( $code && $meta['exit'] )
 			exit( $code );
@@ -98,7 +116,7 @@ class Command_Runner {
 		if ( $code ) {
 			\WP_CLI::warning( $fail );
 		} else {
-			\WP_CLI::line( "Success: $success" );
+			\WP_CLI::success( $success );
 		}
 	}
 
