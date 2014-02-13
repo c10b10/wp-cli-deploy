@@ -16,52 +16,50 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	public function __construct() {
 		ini_set( 'display_errors', 'STDERR' );
 
+		/** Define the constants dependencies. */
+        self::$config_dependencies = array(
+            'push' => array(
+                'global' => array(
+                    'user',
+                    'host',
+                    'path',
+                ),
+                'db' => array(
+                    'url',
+                    'wp_path',
+                    'db_host',
+                    'db_name',
+                    'db_user',
+                    'db_password',
+                ),
+                'uploads' => array( 'uploads_path' )
+            ),
+            'pull' => array(
+                'global' => array(
+                    'user',
+                    'host',
+                ),
+                'db' => array(
+                    'path',
+                    'url',
+                    'wp_path',
+                    'db_host',
+                    'db_name',
+                    'db_user',
+                    'db_password',
+                ),
+                'uploads' => array( 'uploads_path' )
+            ),
+            'dump' => array(
+                'wp_path',
+                'url'
+            ),
+        );
+
 		/**
 		 * Depending paths need to be under the
 		 * paths they depend on.
 		 */
-
-		/** Define the constants dependencies. */
-		self::$config_dependencies = array(
-			'global' => array(
-			),
-			'commands' => array(
-				'push' => array(
-					'url',
-					'wp_path',
-                    // DEV
-                    'host',
-                    'user',
-                    'path',
-                    'url',
-                    'wp_path',
-                    'uploads_path',
-                    'db_host',
-                    'db_name',
-                    'db_user',
-                    'db_password',
-				),
-				'pull' => array(
-                    // DEV
-                    'host',
-                    'user',
-                    'path',
-                    'url',
-                    'wp_path',
-                    'uploads_path',
-                    'db_host',
-                    'db_name',
-                    'db_user',
-                    'db_password',
-				),
-				'dump' => array(
-					'wp_path',
-					'url'
-				),
-			)
-		);
-
-
 		self::$config = array(
             'env' => '%%env%%',
 
@@ -92,89 +90,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 	}
 
-	private static function sanitize_args( $command, $args, $assoc_args = null ) {
-
-		self::$env = $args[0];
-
-        $constants = self::validate_config( $command, self::$env );
-
-		/** Expand the paths placeholders. */
-        self::$config = self::expand( self::$config, $constants );
-
-        /** Create paths. */
-        Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
-
-        return $args;
-	}
-
-
-	/** Replace the placeholders in the paths with actual data. */
-	private static function expand( $config, $constants ) {
-
-		$data = array(
-			'env' => self::$env,
-			'hash' => Util::get_hash(),
-			'abspath' => untrailingslashit( ABSPATH ),
-			'pretty_date' => date( 'Y_m_d-H_i' ),
-			'rand' => substr( sha1( time() ), 0, 8 ),
-			'hostname' => Runner::get_result( "hostname" ),
-            'local_uploads' => call_user_func( function() {
-                $uploads_dir = wp_upload_dir();
-                return trailingslashit( Runner::get_result(
-                    "cd {$uploads_dir['basedir']}; pwd -P;"
-                ) );
-            } ),
-            'siteurl' => untrailingslashit( Util::trim_url(
-                get_option( 'siteurl' )
-            ) ),
-		);
-
-		foreach ( $config as &$item ) {
-			$item = Util::unplaceholdit( $item, $data + array(
-				/** This ensures that we can have dependencies. */
-				'wd' => $config['wd'],
-				'tmp_path' => $config['tmp_path'],
-                'object' => (object) $constants,
-			) );
-		}
-
-        /** Make it an object. */
-		return (object) $config;
-	}
-
-	/**
-	 * Verifies that all required constants are defined.
-	 * Constants must be of the form: "%ENV%_%NAME%"
-	 */
-	private static function validate_config( $command, $env ) {
-
-		$required_constants = array_unique( array_merge(
-			self::$config_dependencies['commands'][$command],
-			self::$config_dependencies['global']
-		) );
-
-		$errors = array();
-		$constants = array();
-		foreach ( $required_constants as $const ) {
-			/** The constants template */
-			$required_constant = strtoupper( $env . '_' . $const );
-			if ( ! defined( $required_constant ) ) {
-				$errors[] = "Required constant $required_constant is not defined.";
-			} else {
-				$constants[$const] = constant( $required_constant );
-			}
-		}
-
-		if ( count( $errors ) ) {
-			foreach ( $errors as $error ) {
-				WP_Cli::line( "$error" );
-			}
-			WP_Cli::error( 'The missing contants are required in order to run this subcommand.' );
-		}
-
-        return $constants;
-	}
-
 	/**
 	 * Pushes the local database and / or uploads from local to remote.
 	 *
@@ -196,18 +111,25 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 *
 	 *    wp deploy push staging --what=db,uploads
 	 *
-	 * @synopsis <environment> --what=<what> [--safe]
+	 * @synopsis <environment> --what=<what>
 	 */
 	public function push( $args, $assoc_args ) {
 
 		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( ! $args )
+        if ( ! $args ) {
+            WP_Cli::line( 'Nothing happened.' );
 			return false;
+        }
 
-		/* self::dump_db( 'bk_db.sql' ); */
-        /* self::push_db(); */
-        self::push_uploads();
+		/**
+		 * 'what' accepts comma separated values.
+		 */
+        $class = __CLASS__;
+        array_map( function( $item ) use ( $class ) {
+            call_user_func( "$class::push_$item" );
+        }, explode( ',', $assoc_args['what'] ) );
+		$what = explode( ',', $assoc_args['what'] );
 	}
 
 	private function push_db() {
@@ -250,13 +172,15 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner = new Runner();
 
+        $path = isset( $c->safe_mode ) ? $c->path : $c->uploads;
+
 		$runner->add(
 			Util::get_rsync(
-				$c->local_uploads,
-				"$c->ssh:$c->uploads"
+				"$c->local_uploads/",
+				"$c->ssh:$path"
                 // if safe, upload to path and do the shit by hand
 			),
-			'Syncing local uploads to the server.',
+			'Synced local uploads to the server.',
             'Failed to upload the database to the server'
 		);
 
@@ -317,7 +241,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
             "ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
             . " mysqldump --user=$c->db_user --password=$c->db_password --host=$c->db_host"
-            . " $c->db_name --add-drop-table $c->db_name > $server_file'",
+            . " --add-drop-table $c->db_name > $server_file'",
 			"Dumped the remote database to $c->path.",
 			'Failed dumping the remote db.'
 		);
@@ -357,7 +281,29 @@ class WP_Deploy_Command extends WP_CLI_Command {
         /* $runner->run(); */
     }
 
-    public function pull_uploads() {
+    private static function pull_uploads() {
+
+        $c = self::$config;
+
+		$runner = new Runner();
+
+        /** TODO Finalize safe mode. */
+        $runner->add(
+            isset( $c->safe_mode ),
+            "cp -rf $c->local_uploads $c->wd/uploads_$c->timestamp",
+            'Backed up local uploads'
+        );
+
+		$runner->add(
+			Util::get_rsync(
+				"$c->ssh:$c->uploads/",
+				"$c->local_uploads"
+			),
+			"Pulled the $c->env uploads locally."
+		);
+
+        var_dump( $runner->commands );
+        /* $runner->run(); */
     }
 
 	/**
@@ -385,9 +331,15 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 *    # constants defined for this to work
 	 *    wp deploy dump staging --what=db
 	 *
-	 * @synopsis <environment> --what=<what> [--file=<file>]
+	 * @synopsis <environment> [--what=<what>] [--file=<file>]
 	 */
 	public function dump( $args, $assoc_args ) {
+
+		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+
+		if ( ! $args )
+			return false;
+        self::dump_db();
 	}
 
 	private static function dump_db( $args = array() ) {
@@ -436,10 +388,112 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			"rm -f $c->tmp"
 		);
 
-		$runner->run();
+		/* $runner->run(); */
 
         return $path;
 	}
+
+	private static function sanitize_args( $command, $args, $assoc_args = null ) {
+
+		self::$env = $args[0];
+
+        /** If what is available, it needs to refer to an existing method. */
+        if ( isset( $assoc_args['what'] ) ) {
+            foreach( explode( ',', $assoc_args['what'] ) as $item ) {
+                if ( ! method_exists( __CLASS__, "{$command}_$item" ) ) {
+                    WP_Cli::error( "Using unknown '$item' parameter for --what argument." );
+                }
+            }
+        }
+
+        $subcommand = isset( $assoc_args['what'] ) ? $assoc_args['what'] : false;
+
+        $constants = self::validate_config( $command, $subcommand, self::$env );
+
+		/** Expand the paths placeholders. */
+        self::$config = self::expand( self::$config, $constants );
+
+        /** Create paths. */
+        Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
+
+        return $args;
+	}
+
+	/**
+	 * Verifies that all required constants are defined.
+	 * Constants must be of the form: "%ENV%_%NAME%"
+	 */
+	private static function validate_config( $command, $subcommand, $env ) {
+
+        /** Get the required contstants from the dependency array. */
+        $required = self::$config_dependencies[$command];
+        if ( $subcommand ) {
+            $required = array_unique( array_merge(
+                $required[$subcommand],
+                $required['global']
+            ) );
+        }
+
+		$errors = array();
+		$constants = array();
+		foreach ( $required as $const ) {
+			/** The constants template */
+			$required_constant = strtoupper( $env . '_' . $const );
+			if ( ! defined( $required_constant ) ) {
+				$errors[] = "Required constant $required_constant is not defined.";
+			} else {
+				$constants[$const] = constant( $required_constant );
+			}
+		}
+
+		if ( count( $errors ) ) {
+			foreach ( $errors as $error ) {
+				WP_Cli::line( "$error" );
+			}
+			WP_Cli::error( 'The missing contants are required in order to run this subcommand.' );
+		}
+
+        return $constants;
+	}
+
+	/** Replace the placeholders in the paths with actual data. */
+	private static function expand( $config, $constants ) {
+
+		$data = array(
+			'env' => self::$env,
+			'hash' => Util::get_hash(),
+			'abspath' => untrailingslashit( ABSPATH ),
+			'pretty_date' => date( 'Y_m_d-H_i' ),
+			'rand' => substr( sha1( time() ), 0, 8 ),
+			'hostname' => Runner::get_result( "hostname" ),
+            'local_uploads' => call_user_func( function() {
+                $uploads_dir = wp_upload_dir();
+                return trailingslashit( Runner::get_result(
+                    "cd {$uploads_dir['basedir']}; pwd -P;"
+                ) );
+            } ),
+            'siteurl' => untrailingslashit( Util::trim_url(
+                get_option( 'siteurl' )
+            ) ),
+		);
+
+		foreach ( $config as &$item ) {
+			$item = Util::unplaceholdit( $item, $data + array(
+				/** This ensures that we can have dependencies. */
+				'wd' => $config['wd'],
+				'tmp_path' => $config['tmp_path'],
+                'object' => (object) array_map( 'untrailingslashit', $constants ),
+			) );
+		}
+
+        var_dump( $config );
+        die;
+
+        /** Make it an object. */
+		return (object) $config;
+	}
+
+
 }
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Command' );
