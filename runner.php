@@ -69,7 +69,12 @@ class Command_Runner {
 
 	function run() {
 		foreach ( $this->commands as $command ) {
-			self::launch( $command );
+			if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+				ini_set( 'display_errors', 'STDERR' );
+				var_dump( $command ); //['command'] );
+			} else {
+				self::launch( $command );
+			}
 		}
 	}
 

@@ -3,7 +3,7 @@ namespace WP_Deploy_Command;
 
 class Helpers {
 
-	static function get_rsync( $source, $dest, $message = false, $compress = true ) {
+	static function get_rsync( $source, $dest, $delete = true, $compress = true ) {
 
 		$exclude = array(
 			'.git',
@@ -14,10 +14,11 @@ class Helpers {
 
 		$rsync = self::unplaceholdit(
 			/** The command template. */
-			'rsync -av%%compress%% -progress -e ssh --delete %%src%% %%dest%% %%exclude%%',
+			'rsync -av%%compress%% -progress -e ssh%%delete%% %%src%% %%dest%% %%exclude%%',
 			/** The arguments. */
 			array(
-				'compress' => ( $compress ? ' -z' : '' ),
+				'compress' => ( $compress ? 'z' : '' ),
+				'delete' => ( $delete ? ' --delete' : '' ),
 				'src' => $source,
 				/** TODO Remove this explicit call */
 				'dest' => ( ! is_string( $dest ) ? "$ssh_user@$ssh_host:$ssh_path" : $dest ),

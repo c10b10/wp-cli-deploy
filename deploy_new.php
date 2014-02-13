@@ -4,7 +4,47 @@ require 'runner.php';
 use \WP_Deploy_Command\Helpers as Util;
 use \WP_Deploy_Command\Command_Runner as Runner;
 
+/**
+ * Deploys the local WordPress database or uploads directory.
+ *
+ * The tool requires defining a set of constants in your wp-config.php file.
+ * The constants should be prefixed with the environment handle which you will use as the first paramater for your desired subcommand. An example configuration for a "dev" environment:
+ *
+ * define( 'DEV_URL', 'the-remote-website-url.com' );
+ * define( 'DEV_WP_PATH', '/path/to/the/wp/dir/on/the/server' );
+ * define( 'DEV_HOST', 'ssh_hosr' );
+ * define( 'DEV_USER', 'ssh_user' );
+ * define( 'DEV_PATH', '/path/to/a/writable/dir/on/the/server' );
+ * define( 'DEV_UPLOADS_PATH', '/path/to/the/remote/uploads/directory' );
+ * define( 'DEV_DB_HOST', 'the_remote_db_host' );
+ * define( 'DEV_DB_NAME', 'the_remote_db_name' );
+ * define( 'DEV_DB_USER', 'the_remote_db_user' );
+ * define( 'DEV_DB_PASSWORD', 'the_remote_db_passoword' );
+ *
+ * => wp deploy push dev ...
+ *
+ * You can define as many constant groups as deployment eviroments you wish to have.
+ *
+ * TODO: Explain subcommands <-> constants dependency
+ *
+ * ## EXAMPLES
+ *
+ *     # Deploy the local db to the staging environment
+ *     wp deploy push staging --what=db
+ *
+ *     # Pull both the production database and uploads
+ *     wp deploy pull production --what=db,uploads
+ *
+ *     # Dump the local db with the siteurl replaced
+ *     wp deploy dump andrew
+ */
 class WP_Deploy_Command extends WP_CLI_Command {
+
+    /**
+     * TODO:
+     * Verbosity
+     * Post push
+     */
 
 	/** The config holder. */
 	private static $config;
@@ -14,7 +54,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	private static $env;
 
 	public function __construct() {
-		ini_set( 'display_errors', 'STDERR' );
+        if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+            ini_set( 'display_errors', 'STDERR' );
+        }
 
 		/** Define the constants dependencies. */
         self::$config_dependencies = array(
@@ -81,6 +123,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'wd' => '%%abspath%%/%%env%%_%%hash%%',
             'timestamp' => '%%pretty_date%%',
 			'tmp_path' => '%%wd%%/tmp',
+			'bk_path' => '%%wd%%/bk',
 			'tmp' => '%%tmp_path%%/%%rand%%',
             'local_hostname' => '%%hostname%%',
 			'ssh' => '%%user%%@%%host%%',
@@ -96,13 +139,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * <environment>
-	 * : The name of the environment. This is the prefix of the constants defined in
-	 * wp-config.
+     * : The handle of of the environment. This is the prefix of the constants
+     * defined in wp-config.
 	 *
 	 * `--what`=<what>
-	 * : What needs to be pushed. Suports multiple comma sepparated values. Valid
-	 * options are: 'db' (pushes the database to the remote server) and
-	 * 'uploads' (pushes the uploads to the remote server).
+     * : What needs to be deployed on the server. Suports multiple comma
+     * sepparated values.Valid options are:
+     *      db: pushes the database to the remote server
+	 *      uploads: pushes the uploads to the remote server
 	 *
 	 * ## EXAMPLE
 	 *
@@ -132,6 +176,87 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$what = explode( ',', $assoc_args['what'] );
 	}
 
+	/**
+	 * Pulls the database and / or uploads from remote to local. After pulling
+	 * the uploads, they need to copied to the correct location.
+	 *
+	 * <environment>
+	 * : The name of the environment. This is the prefix of the constants defined in
+	 * wp-config.
+	 *
+	 * `--what`=<what>:
+	 * : What needs to be pulled. Suports multiple comma sepparated values. This
+	 * determines the order of execution for deployments. Valid options are: 'db'
+	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
+	 * the uploads folder).
+	 *
+	 * `--backup`=<backup>
+	 * : Optional. Wether the local db should be backup up beofore importing
+	 * the new db. Defaults to true.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *    # Pulls database and uploads folder
+	 *    wp deploy pull staging --what=db,uploads
+	 *
+	 *    # Pull the remote db without prior local backup
+	 *    wp deploy pull staging --what=db --backup=false
+	 *
+	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>]
+	 */
+	public function pull( $args, $assoc_args ) {
+
+		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+
+        if ( ! $args ) {
+            WP_Cli::line( 'Nothing happened.' );
+			return false;
+        }
+
+		/**
+		 * 'what' accepts comma separated values.
+		 */
+        $class = __CLASS__;
+        array_map( function( $item ) use ( $class ) {
+            call_user_func( "$class::pull_$item" );
+        }, explode( ',', $assoc_args['what'] ) );
+		$what = explode( ',', $assoc_args['what'] );
+	}
+
+	/**
+	 * Dumps the local database and / or uploads from local to remote. The
+	 * database will be prepared for upload to the specified environment.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <environment>
+     * : The name of the environment. This is the prefix of the constants
+     * defined in wp-config.php.
+	 *
+	 * [`--what`=<what>]
+	 * : What needs to be dumped. Currently, only the "db" option is supported.
+	 *
+	 * ## EXAMPLE
+	 *
+     *    # Dumps database for to "staging" environment.
+     *    wp deploy dump staging --what=db
+	 *
+	 * @synopsis <environment> [--what=<what>] [--file=<file>]
+	 */
+	public function dump( $args, $assoc_args ) {
+
+		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+
+        if ( ! $args ) {
+            WP_Cli::line( 'Nothing happened.' );
+			return false;
+        }
+
+        self::dump_db();
+	}
+
+
+    /** Pushes the database to the server. */
 	private function push_db() {
 
         $c = self::$config;
@@ -161,76 +286,34 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'Failed deploying the db to server.'
 		);
 
-
-        var_dump( $runner->commands );
-		/* $runner->run(); */
+		$runner->run();
 	}
 
+    /** Pushes the uploads to the server. */
 	private function push_uploads( $args = array() ) {
 
         $c = self::$config;
 
 		$runner = new Runner();
 
-        $path = isset( $c->safe_mode ) ? $c->path : $c->uploads;
+        /** TODO safe mode */
+        $path = ! isset( $c->safe_mode ) ? $c->path : $c->uploads;
 
 		$runner->add(
 			Util::get_rsync(
-				"$c->local_uploads/",
+                // When pushing safe, we push the dir, hence no trailing slash
+                "$c->local_uploads",
 				"$c->ssh:$path"
-                // if safe, upload to path and do the shit by hand
 			),
-			'Synced local uploads to the server.',
+			"Synced local uploads to '$path' on '$c->host'.",
             'Failed to upload the database to the server'
 		);
 
-        var_dump( $runner->commands );
-
-        /* $runner->run(); */
-
-		WP_CLI::success( "Deployed the uploads to server." );
+        $runner->run();
 	}
 
-	/**
-	 * Pulls the database and / or uploads from remote to local. After pulling
-	 * the uploads, they need to copied to the correct location.
-	 *
-	 * <environment>
-	 * : The name of the environment. This is the prefix of the constants defined in
-	 * wp-config.
-	 *
-	 * `--what`=<what>:
-	 * : What needs to be pull. Suports multiple comma sepparated values. This
-	 * determines the order of execution for deployments. Valid options are: 'db'
-	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
-	 * the uploads folder).
-	 *
-	 * `--backup`=<backup>
-	 * : Optional. Wether the local db should be backup up beofore importing
-	 * the new db. Defaults to true.
-	 *
-	 * ## EXAMPLES
-	 *
-	 *    # Pulls database and uploads folder
-	 *    wp deploy pull staging --what=db,uploads
-	 *
-	 *    # Pull the remote db without prior local backup
-	 *    wp deploy pull staging --what=db --backup=false
-	 *
-	 * @synopsis <environment> --what=<what> [--cleanup] [--backup=<backup>]
-	 */
-	public function pull( $args, $assoc_args ) {
-
-		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
-
-		if ( ! $args )
-			return false;
-
-        /* self::pull_db(); */
-        self::pull_uploads();
-	}
-
-    public function pull_db() {
+    /** Pulls the database from the server. */
+    private function pull_db() {
 
         $c = self::$config;
 
@@ -249,15 +332,22 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				"$c->ssh:$c->path/$server_file",
-				"$c->wd/$server_file"
+				"$c->wd/$server_file",
+                false, false // No delete or compression
 			),
 			'Copied the database from the server.'
 		);
 
+        $runner->add(
+            "ssh $c->ssh 'cd $c->path; rm -f $server_file'",
+            'Deleted the server dump.'
+        );
+
         /** TODO Finalize safe mode. */
         $runner->add(
-            isset( $c->safe_mode ),
-            "wp db export $c->wd/$c->timestamp.sql"
+            ! isset( $c->safe_mode ),
+            "wp db export $c->bk_path/$c->timestamp.sql",
+            "Backed up local database to $c->bk_path/$c->timestamp.sql"
         );
 
         $runner->add(
@@ -277,10 +367,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			"Replaced $c->wp with $c->abspath on local database."
 		);
 
-        var_dump( $runner );
-        /* $runner->run(); */
+        $runner->run();
     }
 
+    /** Pulls the uploads from the server. */
     private static function pull_uploads() {
 
         $c = self::$config;
@@ -290,8 +380,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
         /** TODO Finalize safe mode. */
         $runner->add(
             isset( $c->safe_mode ),
-            "cp -rf $c->local_uploads $c->wd/uploads_$c->timestamp",
-            'Backed up local uploads'
+            "cp -rf $c->local_uploads $c->bk_path/uploads_$c->timestamp",
+            'Backed up local uploads.'
         );
 
 		$runner->add(
@@ -302,46 +392,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			"Pulled the $c->env uploads locally."
 		);
 
-        var_dump( $runner->commands );
-        /* $runner->run(); */
+        $runner->run();
     }
 
-	/**
-	 * Dumps the local database and / or uploads from local to remote. The
-	 * database will be prepared for upload to the specified environment.
-	 *
-	 * ## OPTIONS
-	 *
-	 * <environment>
-	 * : The name of the environment. This is the prefix of the constants defined in
-	 * wp-config.php.
-	 *
-	 * `--what`=<what>
-	 * : What needs to be dumped. Suports multiple comma sepparated values. Valid
-	 * options are: 'db' (dumps the databse with the url and paths replaced) and
-	 * 'uploads' (creates an archive of the uploads folder in the current directory).
-	 *
-	 * [`--file`=<file>]
-	 * : [REMOVED] Optional. What should the dump be called. Default: '%date_time% _%env%.sql' for 'db', 'uploads.tar.gz' for
-	 * 'uploads'.
-	 *
-	 * ## EXAMPLE
-	 *
-	 *    # Dumps database for to "staging" environment. You must have STAGING_*
-	 *    # constants defined for this to work
-	 *    wp deploy dump staging --what=db
-	 *
-	 * @synopsis <environment> [--what=<what>] [--file=<file>]
-	 */
-	public function dump( $args, $assoc_args ) {
-
-		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
-
-		if ( ! $args )
-			return false;
-        self::dump_db();
-	}
-
+    /** Dumps the local database after performing search-replace. */
 	private static function dump_db( $args = array() ) {
 
         $c = self::$config;
@@ -388,11 +442,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			"rm -f $c->tmp"
 		);
 
-		/* $runner->run(); */
+		$runner->run();
 
         return $path;
 	}
 
+    /** Sanitizes the arguments, and sets the configuration. */
 	private static function sanitize_args( $command, $args, $assoc_args = null ) {
 
 		self::$env = $args[0];
@@ -406,15 +461,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
             }
         }
 
-        $subcommand = isset( $assoc_args['what'] ) ? $assoc_args['what'] : false;
-
+        /** Get the environmental and set the tool config. */
+        $subcommand = in_array( $command, array( 'push', 'pull' ) ) ? $assoc_args['what'] : '';
         $constants = self::validate_config( $command, $subcommand, self::$env );
-
-		/** Expand the paths placeholders. */
         self::$config = self::expand( self::$config, $constants );
 
         /** Create paths. */
         Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
+        Runner::get_result( 'mkdir -p ' . self::$config->bk_path . ';' );
 
         return $args;
 	}
@@ -450,13 +504,13 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			foreach ( $errors as $error ) {
 				WP_Cli::line( "$error" );
 			}
-			WP_Cli::error( 'The missing contants are required in order to run this subcommand.' );
+			WP_Cli::error( "The missing constants are required in order to run this subcommand.\nType `wp help deploy` for more information." );
 		}
 
         return $constants;
 	}
 
-	/** Replace the placeholders in the paths with actual data. */
+	/** Replaces the placeholders in the paths with actual data. */
 	private static function expand( $config, $constants ) {
 
 		$data = array(
@@ -468,7 +522,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'hostname' => Runner::get_result( "hostname" ),
             'local_uploads' => call_user_func( function() {
                 $uploads_dir = wp_upload_dir();
-                return trailingslashit( Runner::get_result(
+                return untrailingslashit( Runner::get_result(
                     "cd {$uploads_dir['basedir']}; pwd -P;"
                 ) );
             } ),
@@ -486,14 +540,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			) );
 		}
 
-        var_dump( $config );
-        die;
-
-        /** Make it an object. */
+        /** Return the config in object form. */
 		return (object) $config;
 	}
-
-
 }
 
 WP_CLI::add_command( 'deploy', 'WP_Deploy_Command' );
