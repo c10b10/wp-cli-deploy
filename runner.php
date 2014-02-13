@@ -41,6 +41,8 @@ class Command_Runner {
 		if ( empty( $args ) )
 			return;
 
+		$command = $args[0];
+
 		$messages = array_filter(
 			array_slice( $args, 1 ),
 			function( $a ) {
