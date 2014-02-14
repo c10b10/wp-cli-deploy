@@ -1,9 +1,9 @@
 {
-	"name": "c10b10/wp-cli-deploy",
-	"description": "Deploys the local WordPress database or the uploads directory to a remote server using ssh.",
+    "name": "c10b10/wp-cli-deploy",
+    "description": "Deploys the local WordPress database or the uploads directory to a remote server using ssh.",
     "keywords": ["wp-cli", "git", "deploy", "dump", "mysql", "uploads", "wordpress"],
-	"homepage": "https://github.com/c10b10/wp-cli-deploy",
-	"license": "MIT",
+    "homepage": "https://github.com/c10b10/wp-cli-deploy",
+    "license": "MIT",
     "authors": [
     {
         "name": "Alex Ciobica",
@@ -11,11 +11,11 @@
         "homepage": "http://ciobi.ca"
     }
     ],
-	"require": {
-		"php": ">=5.4",
-        "wp-cli/wp-cli": ">=0.14"
-	},
-	"autoload": {
-		"files": [ "deploy.php" ]
-	}
+        "require": {
+            "php": ">=5.4",
+            "wp-cli/wp-cli": ">=0.14"
+        },
+        "autoload": {
+            "files": [ "deploy.php" ]
+        }
 }
