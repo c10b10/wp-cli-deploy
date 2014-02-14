@@ -497,7 +497,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		self::$runner = new Runner( $verbosity );
 
         /** Get the environmental and set the tool config. */
-        $subcommand = in_array( $command, array( 'push', 'pull' ) ) ? $assoc_args['what'] : '';
+        $subcommand = in_array( $command, array( 'push', 'pull' ) ) ? explode( ',', $assoc_args['what'] ) : '';
         $constants = self::validate_config( $command, $subcommand, self::$env );
         self::$config = self::expand( self::$config, $constants );
 
@@ -520,14 +520,21 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * Verifies that all required constants are defined.
 	 * Constants must be of the form: "%ENV%_%NAME%"
 	 */
-	private static function validate_config( $command, $subcommand, $env ) {
+	private static function validate_config( $command, $subcommands, $env ) {
 
         /** Get the required contstants from the dependency array. */
-        $required = self::$config_dependencies[$command];
-        if ( $subcommand ) {
+        $deps = self::$config_dependencies[$command];
+        if ( $subcommands ) {
+			$required = array();
+			foreach ( $subcommands as $subcommand ) {
+				$required = array_merge( 
+					$deps[$subcommand],
+					$required
+				);
+			}
             $required = array_unique( array_merge(
-                $required[$subcommand],
-                $required['global']
+				$required,
+                $deps['global']
             ) );
         }
 
