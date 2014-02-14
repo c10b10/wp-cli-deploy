@@ -50,6 +50,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * TODO:
 	 * Post push
 	 * Update paths in messages to be relative to wordpress dir.
+	 * Fix the missing path directory at push issue.
 	 */
 
 	/** The config holder. */
