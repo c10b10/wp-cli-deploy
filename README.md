@@ -9,14 +9,14 @@ The constants should be prefixed with the environment handle which you will use 
 <?php
 define( 'DEV_URL', 'the-remote-website-url.com' );
 define( 'DEV_WP_PATH', '/path/to/the/wp/dir/on/the/server' );
-define( 'DEV_HOST', 'ssh_hosr' );
+define( 'DEV_HOST', 'ssh_host' );
 define( 'DEV_USER', 'ssh_user' );
 define( 'DEV_PATH', '/path/to/a/writable/dir/on/the/server' );
 define( 'DEV_UPLOADS_PATH', '/path/to/the/remote/uploads/directory' );
 define( 'DEV_DB_HOST', 'the_remote_db_host' );
 define( 'DEV_DB_NAME', 'the_remote_db_name' );
 define( 'DEV_DB_USER', 'the_remote_db_user' );
-define( 'DEV_DB_PASSWORD', 'the_remote_db_passoword' );
+define( 'DEV_DB_PASSWORD', 'the_remote_db_password' );
 ```
 
 => `wp deploy push dev ...`
