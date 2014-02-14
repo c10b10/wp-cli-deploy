@@ -282,7 +282,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
         $c = self::$config;
 
-        $dump_file = self::dump_db( array( 'wd' => $c->tmp_path ) );
+		$dump_file = self::dump_db( array(
+			'wd' => $c->tmp_path,
+			'name' => basename( $c->tmp ),
+		) );
         $server_file = "{$c->local_hostname}_{$c->env}.sql";
 
 		$runner = self::$runner;
