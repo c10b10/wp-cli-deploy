@@ -295,7 +295,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				$dump_file,
 				"$c->ssh:$c->path/$server_file"
 			),
-			'Uploaded the database file to the server.',
+			"Uploaded the database file to '$c->path/$server_file' on the server.",
             'Failed to upload the database to the server'
 		);
 
