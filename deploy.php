@@ -207,10 +207,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
 	 * the uploads folder).
 	 *
-	 * `--backup`=<backup>
-	 * : Optional. Wether the local db should be backup up beofore importing
-	 * the new db. Defaults to true.
-	 *
 	 * [`--v`=<verbosity>]
 	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
 	 *
