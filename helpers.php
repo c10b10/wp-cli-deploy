@@ -20,12 +20,12 @@ class Helpers {
 				'compress' => ( $compress ? 'z' : '' ),
 				'delete' => ( $delete ? ' --delete' : '' ),
 				'src' => $source,
-				/** TODO Remove this explicit call */
-				'dest' => ( ! is_string( $dest ) ? "$ssh_user@$ssh_host:$ssh_path" : $dest ),
+
+				'dest' => $dest,
 				'exclude' => '--exclude ' . implode(
-						' --exclude ',
-						array_map( 'escapeshellarg', $exclude )
-					)
+					' --exclude ',
+					array_map( 'escapeshellarg', $exclude )
+				)
 			)
 		);
 
