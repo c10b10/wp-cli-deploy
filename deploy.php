@@ -108,6 +108,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				'wp_path',
 				'url'
 			),
+			'optional' => array(
+				'post_hook'
+			)
 		);
 
 		/**
@@ -128,7 +131,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'db_name' => '%%db_name%%',
 			'db_user' => '%%db_user%%',
 			'db_password' => '%%db_password%%',
-			/** TODO Safe mode for all commands */
+
+			/** Optional */
+			'post_hook' => '%%post_hook%%',
+			'safe_mode' => '%%safe_mode%%', /** TODO */
 
 			/** Helpers which refer to local. */
 			'abspath' => '%%abspath%%',
@@ -190,6 +196,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		}, explode( ',', $assoc_args['what'] ) );
 		$what = explode( ',', $assoc_args['what'] );
 
+		self::run_post_hook();
+
 		self::wow();
 	}
 
@@ -238,6 +246,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		}, explode( ',', $assoc_args['what'] ) );
 		$what = explode( ',', $assoc_args['what'] );
 
+		self::run_post_hook();
+
 		self::wow();
 	}
 
@@ -275,9 +285,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		self::dump_db();
 
+		self::run_post_hook();
+
 		self::wow();
 	}
-
 
 	/** Pushes the database to the server. */
 	private function push_db() {
@@ -498,11 +509,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			$verbosity = $assoc_args['v'];
 		self::$runner = new Runner( $verbosity );
 
-
 		/** Get the environmental and set the tool config. */
-		$subcommand = in_array( $command, array( 'push', 'pull' ) ) ? $assoc_args['what'] : '';
+		$subcommand = in_array( $command, array( 'push', 'pull' ) ) ? explode( ',', $assoc_args['what'] ) : '';
 		$constants = self::validate_config( $command, $subcommand, self::$env );
-		self::$config = self::expand( self::$config, $constants );
+		self::$config = self::expand( self::$config, $constants, $command );
 
 		/** Create paths. */
 		Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
@@ -526,30 +536,35 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	private static function validate_config( $command, $subcommands, $env ) {
 
 		/** Get the required contstants from the dependency array. */
-		$deps = self::$config_dependencies[$command];
-		if ( $subcommands ) {
+		$deps = self::$config_dependencies;
+		if ( ! empty( $subcommands ) ) {
 			$required = array();
 			foreach ( $subcommands as $subcommand ) {
-				$required = array_merge( 
-					$deps[$subcommand],
+				$required = array_merge(
+					$deps[$command][$subcommand],
 					$required
 				);
 			}
 			$required = array_unique( array_merge(
 				$required,
-				$deps['global']
+
+				$deps[$command]['global']
 			) );
 		}
 
+		$get_const = function ( $const ) use ( $env ) {
+			return strtoupper( $env . '_' . $const );
+		};
+
 		$errors = array();
 		$constants = array();
-		foreach ( $required as $const ) {
+		foreach ( $required as $short_name ) {
 			/** The constants template */
-			$required_constant = strtoupper( $env . '_' . $const );
+			$required_constant = $get_const( $short_name );
 			if ( ! defined( $required_constant ) ) {
 				$errors[] = "Required constant $required_constant is not defined.";
 			} else {
-				$constants[$const] = constant( $required_constant );
+				$constants[$short_name] = constant( $required_constant );
 			}
 		}
 
@@ -560,20 +575,27 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			WP_Cli::error( "The missing constants are required in order to run this subcommand.\nType `wp help deploy` for more information." );
 		}
 
+		/** Add the optional constants. */
+		foreach ( $deps['optional'] as $optional ) {
+			$const = $get_const( $optional );
+			if ( defined( $const ) )
+				$constants[$optional] = constant( $const );
+		}
+
 		return $constants;
 	}
 
 	/** Replaces the placeholders in the paths with actual data. */
-	private static function expand( $config, $constants ) {
+	private static function expand( $config, $constants, $command ) {
 
 		$data = array(
 			'env' => self::$env,
+			'command' => $command,
 			'hash' => Util::get_hash(),
 			'abspath' => untrailingslashit( ABSPATH ),
 			'pretty_date' => date( 'Y_m_d-H_i' ),
 			'rand' => substr( sha1( time() ), 0, 8 ),
 			'hostname' => Runner::get_result( "hostname" ),
-
 			'local_uploads' => call_user_func( function() {
 				$uploads_dir = wp_upload_dir();
 				return untrailingslashit( Runner::get_result(
@@ -583,19 +605,37 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'siteurl' => untrailingslashit( Util::trim_url(
 				get_option( 'siteurl' )
 			) ),
+			'object' => (object) array_map( 'untrailingslashit', $constants )
 		);
 
 		foreach ( $config as &$item ) {
-			$item = Util::unplaceholdit( $item, $data + array(
-				/** This ensures that we can have dependencies. */
-				'wd' => $config['wd'],
-				'tmp_path' => $config['tmp_path'],
-				'object' => (object) array_map( 'untrailingslashit', $constants ),
+			$item = Util::unplaceholdit( $item, array_merge(
+				/** This esures we can have dependecies. */
+				$config,
+				$data
 			) );
 		}
 
+		if ( isset( $constants['post_hook'] ) ) {
+			$config['post_hook'] = Util::unplaceholdit( $config['post_hook'], array_merge( $config, $data ) );
+		}
+
+		/** Remove unset config items (constants). */
+		$config = array_filter( $config, function ( $item ) {
+			return strpos( $item, '%%' ) === false;
+		} );
+
 		/** Return the config in object form. */
 		return (object) $config;
+	}
+
+	public function run_post_hook() {
+
+		if ( isset( self::$config->post_hook ) ) {
+			$result = Runner::get_result( self::$config->post_hook );
+			var_dump( $result );
+			WP_Cli::line( "Ran post hook." );
+		}
 	}
 
 	private static function wow() {
