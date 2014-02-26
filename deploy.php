@@ -64,7 +64,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	private static $config_dependencies;
 
 	public function __construct() {
-		if ( 1 || defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+		if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+			ini_set( 'error_reporting', E_ALL & ~E_STRICT );
 			ini_set( 'display_errors', 'STDERR' );
 		}
 
