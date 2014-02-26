@@ -71,7 +71,7 @@ class Command_Runner {
 
 	function run() {
 		foreach ( $this->commands as $key => $command ) {
-			if ( defined( 'WP_DEPLOY_DEBUG' ) && WP_DEPLOY_DEBUG ) {
+			if ( defined( 'WP_DEPLOY_DEBUG' ) && ( WP_DEPLOY_DEBUG == 'all' ) ) {
 				ini_set( 'error_reporting', E_ALL & ~E_STRICT );
 				ini_set( 'display_errors', 'STDERR' );
 				var_dump( $command ); //['command'] );
