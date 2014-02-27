@@ -38,7 +38,7 @@ use \WP_Deploy_Command\Command_Runner as Runner;
  *     wp deploy push staging --what=db
  *
  *     # Pull both the production database and uploads
- *     wp deploy pull production --what=db,uploads
+ *     wp deploy pull production --what=db && wp deploy pull production --what=uploads
  *
  *     # Dump the local db with the siteurl replaced
  *     wp deploy dump andrew
@@ -138,6 +138,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'safe_mode' => '%%safe_mode%%', /** TODO */
 
 			/** Helpers which refer to local. */
+			'command' => '%%command%%',
+			'what' => '%%what%%',
 			'abspath' => '%%abspath%%',
 			'wd' => '%%abspath%%/%%env%%_%%hash%%',
 			'timestamp' => '%%pretty_date%%',
@@ -162,12 +164,11 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * defined in wp-config.
 	 *
 	 * `--what`=<what>
-	 * : What needs to be deployed on the server. Suports multiple comma
-	 * sepparated values. Valid options are:
+	 * : What needs to be deployed on the server. Valid options are:
 	 *      db: pushes the database to the remote server
 	 *      uploads: pushes the uploads to the remote server
 	 *
-	 * [`--v`=<v>]
+	 * [`--v`=<verbosity>]
 	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
 	 *
 	 * ## EXAMPLE
@@ -183,19 +184,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( ! $args ) {
-			WP_Cli::line( 'Nothing happened.' );
+		if ( isset( $args->error ) ) {
+			WP_Cli::line( $args->error );
 			return false;
 		}
 
-		/**
-		 * 'what' accepts comma separated values.
-		 */
-		$class = __CLASS__;
-		array_map( function( $item ) use ( $class ) {
-			call_user_func( "$class::push_$item" );
-		}, explode( ',', $assoc_args['what'] ) );
-		$what = explode( ',', $assoc_args['what'] );
+		call_user_func( __CLASS__ . "::push_" . self::$config->what );
 
 		self::run_post_hook();
 
@@ -210,11 +204,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * : The name of the environment. This is the prefix of the constants defined in
 	 * wp-config.
 	 *
-	 * `--what`=<what>:
-	 * : What needs to be pulled. Suports multiple comma sepparated values. This
-	 * determines the order of execution for deployments. Valid options are: 'db'
-	 * (pulls the databse with the url and paths replaced) and 'uploads' (pulls
-	 * the uploads folder).
+	 * `--what`=<what>
+	 * : What needs to be pulled. Valid options are:
+	 *      db: pushes the database to the remote server
+	 *      uploads: pushes the uploads to the remote server
 	 *
 	 * [`--v`=<verbosity>]
 	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
@@ -233,19 +226,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( ! $args ) {
-			WP_Cli::line( 'Nothing happened.' );
+		if ( isset( $args->error ) ) {
+			WP_Cli::line( $args->error );
 			return false;
 		}
 
-		/**
-		 * 'what' accepts comma separated values.
-		 */
-		$class = __CLASS__;
-		array_map( function( $item ) use ( $class ) {
-			call_user_func( "$class::pull_$item" );
-		}, explode( ',', $assoc_args['what'] ) );
-		$what = explode( ',', $assoc_args['what'] );
+		call_user_func( __CLASS__ . "::pull_" . self::$config->what );
 
 		self::run_post_hook();
 
@@ -262,25 +248,22 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * : The name of the environment. This is the prefix of the constants
 	 * defined in wp-config.php.
 	 *
-	 * [`--what`=<what>]
-	 * : What needs to be dumped. Currently, only the "db" option is supported.
-
 	 * [`--v`=<v>]
 	 * : Verbosity level. Default 1. 0 is highest and 2 is lowest.
 	 *
 	 * ## EXAMPLE
 	 *
 	 *    # Dumps database for to "staging" environment.
-	 *    wp deploy dump staging --what=db
+	 *    wp deploy dump staging
 	 *
-	 * @synopsis <environment> [--what=<what>] [--file=<file>] [--v=<v>]
+	 * @synopsis <environment> [--file=<file>] [--v=<v>]
 	 */
 	public function dump( $args, $assoc_args ) {
 
 		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( ! $args ) {
-			WP_Cli::line( 'Nothing happened.' );
+		if ( isset( $args->error ) ) {
+			WP_Cli::line( $args->error );
 			return false;
 		}
 
@@ -493,11 +476,11 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		self::$env = $args[0];
 
 		/** If what is available, it needs to refer to an existing method. */
+		$what = '';
 		if ( isset( $assoc_args['what'] ) ) {
-			foreach( explode( ',', $assoc_args['what'] ) as $item ) {
-				if ( ! method_exists( __CLASS__, "{$command}_$item" ) ) {
-					WP_Cli::error( "Using unknown '$item' parameter for --what argument." );
-				}
+			$what = $assoc_args['what'];
+			if ( ! method_exists( __CLASS__, "{$command}_{$what}" ) ) {
+				WP_Cli::error( "Using unknown '$what' parameter for --what argument." );
 			}
 		}
 
@@ -511,15 +494,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		self::$runner = new Runner( $verbosity );
 
 		/** Get the environmental and set the tool config. */
-		$subcommand = in_array( $command, array( 'push', 'pull' ) ) ? explode( ',', $assoc_args['what'] ) : '';
-		$constants = self::validate_config( $command, $subcommand, self::$env );
-		self::$config = self::expand( self::$config, $constants, $command );
+		$constants = self::validate_config( $command, $what, self::$env );
+		self::$config = self::expand( self::$config, $constants, $command, $what );
 
 		/** Create paths. */
 		Runner::get_result( 'mkdir -p ' . self::$config->tmp_path . ';' );
 		Runner::get_result( 'mkdir -p ' . self::$config->bk_path . ';' );
 
-		return $args;
+		return self::$config;
 	}
 
 	/** Determines the verbosity level: 1, 2, or 3 */
@@ -534,24 +516,27 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * Verifies that all required constants are defined.
 	 * Constants must be of the form: "%ENV%_%NAME%"
 	 */
-	private static function validate_config( $command, $subcommands, $env ) {
+	private static function validate_config( $command, $what, $env ) {
 
 		/** Get the required contstants from the dependency array. */
 		$deps = self::$config_dependencies;
-		if ( ! empty( $subcommands ) ) {
-			$required = array();
-			foreach ( $subcommands as $subcommand ) {
-				$required = array_merge(
-					$deps[$command][$subcommand],
-					$required
-				);
-			}
+		$required = $deps[$command];
+		if ( ! empty( $what ) ) {
 			$required = array_unique( array_merge(
-				$required,
-
+				$deps[$command][$what],
 				$deps[$command]['global']
 			) );
 		}
+
+		/** Get all definable constants. */
+		$all_const = array();
+		foreach( $deps as $comm_deps ) {
+			foreach ( $comm_deps as $item ) {
+				$const = is_array( $item ) ? $item : array( $item );
+				$all_const = array_merge( $all_const, $const );
+			}
+		}
+		$all_const = array_unique( $all_const );
 
 		$get_const = function ( $const ) use ( $env ) {
 			return strtoupper( $env . '_' . $const );
@@ -559,13 +544,13 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$errors = array();
 		$constants = array();
-		foreach ( $required as $short_name ) {
+		foreach ( $all_const as $short_name ) {
 			/** The constants template */
-			$required_constant = $get_const( $short_name );
-			if ( ! defined( $required_constant ) ) {
-				$errors[] = "Required constant $required_constant is not defined.";
-			} else {
-				$constants[$short_name] = constant( $required_constant );
+			$constant = $get_const( $short_name );
+			if ( in_array( $short_name, $required ) && ! defined( $constant ) ) {
+				$errors[] = "Required constant $constant is not defined.";
+			} elseif ( defined( $constant ) ) {
+				$constants[$short_name] = constant( $constant );
 			}
 		}
 
@@ -587,11 +572,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	}
 
 	/** Replaces the placeholders in the paths with actual data. */
-	private static function expand( $config, $constants, $command ) {
+	private static function expand( $config, $constants, $command, $what ) {
 
 		$data = array(
 			'env' => self::$env,
 			'command' => $command,
+			'what' => $what,
 			'hash' => Util::get_hash(),
 			'abspath' => untrailingslashit( ABSPATH ),
 			'pretty_date' => date( 'Y_m_d-H_i' ),
@@ -634,7 +620,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		if ( isset( self::$config->post_hook ) ) {
 			$result = Runner::get_result( self::$config->post_hook );
-			var_dump( $result );
+			if ( ! empty( $result ) ) {
+				var_dump( $result );
+			}
 			WP_Cli::line( "Ran post hook." );
 		}
 	}

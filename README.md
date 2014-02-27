@@ -36,7 +36,7 @@ TODO: Explain subcommands <-> constants dependency
     wp deploy push staging --what=db
 
     # Pull both the production database and uploads
-    wp deploy pull production --what=db,uploads
+    wp deploy pull production --what=db && wp deploy pull production --what=uploads
 
     # Dump the local db with the siteurl replaced
     wp deploy dump andrew
