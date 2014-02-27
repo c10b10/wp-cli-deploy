@@ -28,6 +28,8 @@ a subcommand requires, execute it with a non-existing environment handle. e.g.
 `wp deploy dump johndoe`.
 
 TODO: Explain subcommands <-> constants dependency
+TODO: Add information about how to use the env constants in the post deploy
+hook.
 
 ## EXAMPLES
 
