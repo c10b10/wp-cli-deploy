@@ -42,6 +42,16 @@ __Examples__
     # Dump the local db with the siteurl replaced
     wp deploy dump andrew
 
+### Installation
+
+1. Clone this repository in your WordPress directory.
+2. Create a `wp-cli.yml` file in the root of you WordPress directory with:
+```yml
+require: "relative/path/to/deploy.php"
+```
+3. You can now use the deploy command. Type `wp help deploy` to see if it
+works.
+
 ### Configuration
 
 In order to be able to use the deploy command, you need to define certain
