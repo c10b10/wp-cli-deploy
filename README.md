@@ -42,7 +42,7 @@ You can define as many constant groups as deployment eviroments you wish to have
 
 ## CONSTANTS
 
-### %%ENV%%_POST_HOOK
+### `%%ENV%%_POST_HOOK`
 
 You can optionally define a constant with bash code which is called at the
 end of the subcommand execution.
