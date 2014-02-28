@@ -55,54 +55,49 @@ Here's the dependency list:
 * __`wp deploy push`__: In order to push to your server, you need to define the
 ssh credentials, and a path to a writable directory on the server. _These
 constants are needed whatever the arguments passed to the `push` subcommand_:
+    * `%%ENV%%_USER`
+    * `%%ENV%%_HOST`
+    * `%%ENV%%_PATH`
 
- 	* `%%ENV%%_USER`
- 	* `%%ENV%%_HOST`
- 	* `%%ENV%%_PATH`
+* __`wp deploy push %%env%% --what=db`__: In order to deploy the database to your
+server, you need to define the url of your WordPress website, the path to
+the WordPress code on your server, and the credentials to the database on
+the server:
+    * `%%ENV%%_URL`
+    * `%%ENV%%_WP_PATH`
+    * `%%ENV%%_DB_HOST`
+    * `%%ENV%%_DB_NAME`
+    * `%%ENV%%_DB_USER`
+    * `%%ENV%%_DB_PASSWORD`
 
- * __`wp deploy push %%env%% --what=db`__: In order to deploy the database to your
- server, you need to define the url of your WordPress website, the path to
- the WordPress code on your server, and the credentials to the database on
- the server:
+* __`wp deploy push %%env%% --what=uploads`__: In order to push the uploads directory,
+you need to define the path to the uploads directory on your server:
+    * `%%ENV%%_UPLOADS_PATH`
 
- 	* `%%ENV%%_URL`
- 	* `%%ENV%%_WP_PATH`
- 	* `%%ENV%%_DB_HOST`
- 	* `%%ENV%%_DB_NAME`
- 	* `%%ENV%%_DB_USER`
- 	* `%%ENV%%_DB_PASSWORD`
+ __`wp deploy pull`__: In order to pull to your server, you need to define the
+sh credentials constants. _These constants are needed whatever the arguments
+assed to the `pull` subcommand_:
+    * `%%ENV%%_USER`
+    * `%%ENV%%_HOST`
 
- * __`wp deploy push %%env%% --what=uploads`__: In order to push the uploads directory,
- you need to define the path to the uploads directory on your server:
+* __`wp deploy pull %%env%% --what=db`__: In order to pull the database to from your
+server, you need to define the url of your remote WordPress website, the
+path to the WordPress code on your server, and the credentials to the
+database on the server:
+    * `%%ENV%%_PATH`
+    * `%%ENV%%_URL`
+    * `%%ENV%%_WP_PATH`
+    * `%%ENV%%_DB_HOST`
+    * `%%ENV%%_DB_NAME`
+    * `%%ENV%%_DB_USER`
+    * `%%ENV%%_DB_PASSWORD`
 
- 	* `%%ENV%%_UPLOADS_PATH`
+* __`wp deploy push %%env%% --what=uploads`__: As in the `push` command's case, in
+order to pull the remote server uploads, we need their path on the server.
+    * `%%ENV%%_UPLOADS_PATH`
 
-* __`wp deploy pull`__: In order to pull to your server, you need to define the
-ssh credentials constants. _These constants are needed whatever the arguments
-passed to the `pull` subcommand_:
-
- 	* `%%ENV%%_USER`
- 	* `%%ENV%%_HOST`
-
- * __`wp deploy pull %%env%% --what=db`__: In order to pull the database to from your
- server, you need to define the url of your remote WordPress website, the
- path to the WordPress code on your server, and the credentials to the
- database on the server:
-
- 	* `%%ENV%%_PATH`
- 	* `%%ENV%%_URL`
- 	* `%%ENV%%_WP_PATH`
- 	* `%%ENV%%_DB_HOST`
- 	* `%%ENV%%_DB_NAME`
- 	* `%%ENV%%_DB_USER`
- 	* `%%ENV%%_DB_PASSWORD`
-
- * __`wp deploy push %%env%% --what=uploads`__: As in the `push` command's case, in
- order to pull the remote server uploads, we need their path on the server.
- 	* `%%ENV%%_UPLOADS_PATH`
-
- * __`wp dump %%env%%`__: This subcommand only requires the path to the target
- WordPress path and its URL.
+* __`wp dump %%env%%`__: This subcommand only requires the path to the target
+WordPress path and its URL.
 
 #### `%%ENV%%_POST_HOOK`
 
