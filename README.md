@@ -1,4 +1,6 @@
-Current version: 1.0.0
+## WP-Cli Deploy
+
+__Current Version__: 1.0.0
 
 Deploys the local WordPress database or uploads directory.
 
@@ -29,7 +31,7 @@ a subcommand requires, execute it with a non-existing environment handle. e.g.
 
 You can define as many constant groups as deployment eviroments you wish to have.
 
-## EXAMPLES
+__Examples__
 
     # Deploy the local db to the staging environment
     wp deploy push staging --what=db
@@ -40,9 +42,9 @@ You can define as many constant groups as deployment eviroments you wish to have
     # Dump the local db with the siteurl replaced
     wp deploy dump andrew
 
-## CONSTANTS
+### Configuration
 
-### `%%ENV%%_POST_HOOK`
+#### `%%ENV%%_POST_HOOK`
 
 You can optionally define a constant with bash code which is called at the
 end of the subcommand execution.
@@ -64,7 +66,7 @@ directory.
 * `ssh`: The ssh server handle in the `user@host` format.
 
 
-#### Usage Example
+__Example__
 
 Here's an example of a `DEV_POST_HOOK` that posts a message to a hipchat
 room after a `pull` or a `push` is performed using the HipChat REST API
@@ -84,7 +86,7 @@ $command = "if [[ '%%command%%' != 'dump' ]]; then "
 define( 'DEV_POST_HOOK', $command );
 ```
 
-### Dependencies
+#### Configuration Dependecies
 
 Some subcommands depend on certain constants being defined in order to work.
 Here's the dependency list:
@@ -130,6 +132,6 @@ passed to the `pull` subcommand._
  * `wp dump %%env%%`: This subcommand only requires the path to the target
  WordPress path and its URL.
 
-#### Credits
+__Credits__
 
 https://github.com/demental/wp-deploy-flow for inspiration.
