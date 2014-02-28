@@ -114,8 +114,8 @@ WordPress path and its URL.
 You can __optionally__ define a constant with bash code which is called at the
 end of the subcommand execution.
 
-You can use placeholders with the deploy environment variables. Some of the
-list of environment variables is:
+You can refer to environment variables using placeholders. Some of the
+available environment variables are:
 * `env`: The environment handle
 * `command`: The subcommand (Currently `push`, `pull`, or `dump`).
 * `what`: The what argument value for the `push` or `pull` subcommand.
