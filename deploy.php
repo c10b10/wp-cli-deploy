@@ -6,6 +6,8 @@ use \WP_Deploy_Command\Helpers as Util;
 use \WP_Deploy_Command\Command_Runner as Runner;
 
 /**
+ * Current version: 1.0.0
+ *
  * Deploys the local WordPress database or uploads directory.
  *
  * The tool requires defining a set of constants in your wp-config.php file.

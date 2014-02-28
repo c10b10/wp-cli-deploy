@@ -44,54 +44,15 @@ __Examples__
 
 ### Configuration
 
-#### `%%ENV%%_POST_HOOK`
-
-You can optionally define a constant with bash code which is called at the
-end of the subcommand execution.
-
-You can use placeholders with the deploy environment variables. Some of the
-list of environment variables is:
-* `env`: The environment handle
-* `command`: The subcommand (Currently `push`, `pull`, or `dump`).
-* `what`: The what argument value for the `push` or `pull` subcommand.
-* `wd`: The path to the working directory for the deploy command. This is
-the directory where the database is pulled, and other temporary files are
-created.
-* `timestamp`: The date formatted with "Y_m_d-H_i"
-* `tmp_path`: The path to the temporary files directory used by the deploy
-tool.
-* `bk_path`: The path to the backups directory used by the deploy tool.
-* `local_uploads`: The path to the local WordPress instance uploads
-directory.
-* `ssh`: The ssh server handle in the `user@host` format.
-
-
-__Example__
-
-Here's an example of a `DEV_POST_HOOK` that posts a message to a hipchat
-room after a `pull` or a `push` is performed using the HipChat REST API
-(https://github.com/hipchat/hipchat-cli).
-For pushes, it also clears the cache.
-
-```php
-<?php
-$hipchat_message = "http://%%url%%"
-	. "\njeandoe has successfully %%command%%ed %%what%%";
-$command = "if [[ '%%command%%' != 'dump' ]]; then "
-		. "echo '$hipchat_message' | %%abspath%%/hipchat-cli/hipchat_room_message -t 1245678 -r 123456 -f 'WP-Cli Deploy';"
-	. "fi;"
-	. "if [[ '%%command%%' == 'push' ]]; then "
-		. "curl -Ss http://example.com/clear_cache.php?token=12385328523;"
-	. "fi;";
-define( 'DEV_POST_HOOK', $command );
-```
+In order to be able to use the deploy command, you need to define certain
+constants in your `wp-config.php` file.
 
 #### Configuration Dependecies
 
-Some subcommands depend on certain constants being defined in order to work.
+Subcommands depend on different constants in order to work.
 Here's the dependency list:
 
-* `wp deploy push`: In order to push to your server, you need to define the
+* __`wp deploy push`__: In order to push to your server, you need to define the
 ssh credentials, and a path to a writable directory on the server. _These
 constants are needed whatever the arguments passed to the `push` subcommand._
  	* `%%ENV%%_USER`
@@ -131,6 +92,48 @@ passed to the `pull` subcommand._
  	* `%%ENV%%_UPLOADS_PATH`
  * `wp dump %%env%%`: This subcommand only requires the path to the target
  WordPress path and its URL.
+
+#### `%%ENV%%_POST_HOOK`
+
+You can __optionally__ define a constant with bash code which is called at the
+end of the subcommand execution.
+
+You can use placeholders with the deploy environment variables. Some of the
+list of environment variables is:
+* `env`: The environment handle
+* `command`: The subcommand (Currently `push`, `pull`, or `dump`).
+* `what`: The what argument value for the `push` or `pull` subcommand.
+* `wd`: The path to the working directory for the deploy command. This is
+the directory where the database is pulled, and other temporary files are
+created.
+* `timestamp`: The date formatted with "Y_m_d-H_i"
+* `tmp_path`: The path to the temporary files directory used by the deploy
+tool.
+* `bk_path`: The path to the backups directory used by the deploy tool.
+* `local_uploads`: The path to the local WordPress instance uploads
+directory.
+* `ssh`: The ssh server handle in the `user@host` format.
+
+
+__Example__
+
+Here's an example of a `DEV_POST_HOOK` that posts a message to a hipchat
+room after a `pull` or a `push` is performed using the HipChat REST API
+(https://github.com/hipchat/hipchat-cli).
+For pushes, it also clears the cache.
+
+```php
+<?php
+$hipchat_message = "http://%%url%%"
+	. "\njeandoe has successfully %%command%%ed %%what%%";
+$command = "if [[ '%%command%%' != 'dump' ]]; then "
+		. "echo '$hipchat_message' | %%abspath%%/hipchat-cli/hipchat_room_message -t 1245678 -r 123456 -f 'WP-Cli Deploy';"
+	. "fi;"
+	. "if [[ '%%command%%' == 'push' ]]; then "
+		. "curl -Ss http://example.com/clear_cache.php?token=12385328523;"
+	. "fi;";
+define( 'DEV_POST_HOOK', $command );
+```
 
 __Credits__
 

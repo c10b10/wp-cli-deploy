@@ -85,4 +85,39 @@ class Helpers {
 		$siteurl = self::trim_url( get_option( 'siteurl' ) );
 		return substr( sha1( DB_NAME . $siteurl ), 0, 8 );
 	}
+
+	/**
+	 * Create a bar that spans with width of the console
+	 *
+	 * ## OPTIONS
+	 *
+	 * [<character>]
+	 * : The character(s) to make the bar with. Default =
+	 *
+	 * [--c=<c>]
+	 * : Color for bar. Default %p
+	 *
+ 	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp <command> bar
+	 *
+	 *     wp <command> bar '-~' --c='%r'
+	 *
+	 *     wp <command> bar '+-' --c='%r%3'
+	 */
+	function bar( $args = array(), $assoc_args = array() ) {
+		$char = isset( $args[0] ) ? $args[0] : '=';
+		$cols = \cli\Shell::columns();
+		$line = substr( str_repeat($char, $cols), 0, $cols );
+
+		if ( ! isset( $assoc_args['c'] ) ) {
+			$color = '%p'; // https://github.com/jlogsdon/php-cli-tools/blob/master/lib/cli/Colors.php#L113
+		} else {
+			$color = $assoc_args['c'];
+			$color = '%'. trim( $color, '%' );
+		}
+
+		WP_CLI::line( WP_CLI::colorize( $color . $line .'%n' ) );
+	}
 }
