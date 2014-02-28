@@ -58,7 +58,8 @@ constants are needed whatever the arguments passed to the `push` subcommand._
  	* `%%ENV%%_USER`
  	* `%%ENV%%_HOST`
  	* `%%ENV%%_PATH`
- * `wp deploy push %%env%% --what=db`: In order to deploy the database to your
+
+ * __`wp deploy push %%env%% --what=db`__: In order to deploy the database to your
  server, you need to define the url of your WordPress website, the path to
  the WordPress code on your server, and the credentials to the database on
  the server:
@@ -68,15 +69,18 @@ constants are needed whatever the arguments passed to the `push` subcommand._
  	* `%%ENV%%_DB_NAME`
  	* `%%ENV%%_DB_USER`
  	* `%%ENV%%_DB_PASSWORD`
- * `wp deploy push %%env%% --what=uploads`: In order to push the uploads directory,
+
+ * __`wp deploy push %%env%% --what=uploads`__: In order to push the uploads directory,
  you need to define the path to the uploads directory on your server:
  	* `%%ENV%%_UPLOADS_PATH`
-* `wp deploy pull`: In order to pull to your server, you need to define the
+
+* __`wp deploy pull`__: In order to pull to your server, you need to define the
 ssh credentials constants. _These constants are needed whatever the arguments
 passed to the `pull` subcommand._
  	* `%%ENV%%_USER`
  	* `%%ENV%%_HOST`
- * `wp deploy pull %%env%% --what=db`: In order to pull the database to from your
+
+ * __`wp deploy pull %%env%% --what=db`__: In order to pull the database to from your
  server, you need to define the url of your remote WordPress website, the
  path to the WordPress code on your server, and the credentials to the
  database on the server:
@@ -87,10 +91,12 @@ passed to the `pull` subcommand._
  	* `%%ENV%%_DB_NAME`
  	* `%%ENV%%_DB_USER`
  	* `%%ENV%%_DB_PASSWORD`
- * `wp deploy push %%env%% --what=uploads`: As in the `push` command's case, in
+
+ * __`wp deploy push %%env%% --what=uploads`__: As in the `push` command's case, in
  order to pull the remote server uploads, we need their path on the server.
  	* `%%ENV%%_UPLOADS_PATH`
- * `wp dump %%env%%`: This subcommand only requires the path to the target
+
+ * __`wp dump %%env%%`__: This subcommand only requires the path to the target
  WordPress path and its URL.
 
 #### `%%ENV%%_POST_HOOK`
