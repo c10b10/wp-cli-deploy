@@ -3,14 +3,19 @@ namespace WP_Deploy_Command;
 
 class Helpers {
 
-	static function get_rsync( $source, $dest, $delete = true, $compress = true ) {
+	static function get_rsync( $source, $dest, $delete = true, $compress = true, $user_excludes = '' ) {
 
 		$exclude = array(
 			'.git',
 			'cache',
 			'.DS_Store',
-			'thumbs.db'
+			'thumbs.db',
+			'.sass-cache'
 		);
+
+		$user_excludes = explode( ':', $user_excludes );
+
+		$exclude = array_merge( $exclude, $user_excludes );
 
 		$rsync = self::unplaceholdit(
 			/** The command template. */
@@ -63,7 +68,7 @@ class Helpers {
 		return str_replace( $searches, $replaces, $template );
 	}
 
-	static function trim_url( $url ) {
+	static function trim_url( $url, $path = false ) {
 
 		/** In case scheme relative URI is passed, e.g., //www.google.com/ */
 		$url = trim( $url, '/' );
@@ -76,6 +81,10 @@ class Helpers {
 		/** Remove www. */
 		$url_parts = parse_url( $url );
 		$domain = preg_replace( '/^www\./', '', $url_parts['host'] );
+
+		/** Add directory path if needed **/
+		if ( $path && $url_parts['path'] )
+			$domain .= $url_parts['path'];
 
 		return $domain;
 	}

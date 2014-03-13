@@ -193,7 +193,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 					'db_user',
 					'db_password',
 				),
-				'uploads' => array( 'uploads_path' )
+				'uploads' => array( 'uploads_path' ),
+				'themes' => array( 'themes_path' ),
+				'plugins' => array( 'plugins_path' )
 			),
 			'pull' => array(
 				'global' => array(
@@ -209,14 +211,17 @@ class WP_Deploy_Command extends WP_CLI_Command {
 					'db_user',
 					'db_password',
 				),
-				'uploads' => array( 'uploads_path' )
+				'uploads' => array( 'uploads_path' ),
+				'themes' => array( 'themes_path' ),
+				'plugins' => array( 'plugins_path' )
 			),
 			'dump' => array(
 				'wp_path',
 				'url'
 			),
 			'optional' => array(
-				'post_hook'
+				'post_hook',
+				'excludes'
 			)
 		);
 
@@ -234,6 +239,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'url' => '%%url%%',
 			'wp' => '%%wp_path%%',
 			'uploads' => '%%uploads_path%%',
+			'themes' => '%%themes_path%%',
+			'plugins' => '%%plugins_path%%',
 			'db_host' => '%%db_host%%',
 			'db_name' => '%%db_name%%',
 			'db_user' => '%%db_user%%',
@@ -242,6 +249,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			/** Optional */
 			'post_hook' => '%%post_hook%%',
 			'safe_mode' => '%%safe_mode%%', /** TODO */
+			'excludes' => '%%excludes%%',
 
 			/** Helpers which refer to local. */
 			'command' => '%%command%%',
@@ -255,6 +263,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'local_hostname' => '%%hostname%%',
 			'ssh' => '%%user%%@%%host%%',
 			'local_uploads' => '%%local_uploads%%',
+			'local_themes' => '%%local_themes%%',
+			'local_plugins' => '%%local_plugins%%',
 			'siteurl' => '%%siteurl%%',
 		);
 	}
@@ -445,9 +455,64 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_uploads/",
-				"$c->ssh:$path"
+				"$c->ssh:$path",
+				true,
+				true,
+				$c->excludes
 			),
 			"Synced local uploads to '$path' on '$c->host'.",
+			'Failed to upload the database to the server'
+		);
+
+		$runner->run();
+	}
+
+	/** Pushes the themes to the server. */
+	private function push_themes( $args = array() ) {
+
+		$c = self::$config;
+
+		$runner = self::$runner;
+
+		/** TODO safe mode */
+		$path = isset( $c->safe_mode ) ? $c->path : $c->themes;
+
+		$runner->add(
+			Util::get_rsync(
+				// When pushing safe, we push the dir, hence no trailing slash
+				"$c->local_themes/",
+				"$c->ssh:$path",
+				true,
+				true,
+				"$c->excludes"
+			),
+			"Synced local themes to '$path' on '$c->host'.",
+			'Failed to upload the database to the server'
+		);
+
+		$runner->run();
+	}
+
+	/** Pushes the plugins to the server. */
+	private function push_plugins( $args = array() ) {
+
+		$c = self::$config;
+
+		$runner = self::$runner;
+
+		/** TODO safe mode */
+		$path = isset( $c->safe_mode ) ? $c->path : $c->plugins;
+
+		$runner->add(
+			Util::get_rsync(
+				// When pushing safe, we push the dir, hence no trailing slash
+				"$c->local_plugins/",
+				"$c->ssh:$path",
+				true,
+				true,
+				"$c->excludes"
+			),
+			"Synced local plugins to '$path' on '$c->host'.",
 			'Failed to upload the database to the server'
 		);
 
@@ -529,9 +594,70 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				"$c->ssh:$c->uploads/",
-				"$c->local_uploads"
+				"$c->local_uploads",
+				true,
+				true,
+				"$c->excludes"
 			),
 			"Pulled the '$c->env' uploads locally."
+		);
+
+
+		$runner->run();
+	}
+
+	/** Pulls the themes from the server. */
+	private static function pull_themes() {
+
+		$c = self::$config;
+
+		$runner = self::$runner;
+
+		/** TODO Finalize safe mode. */
+		$runner->add(
+			isset( $c->safe_mode ),
+			"cp -rf $c->local_themes $c->bk_path/themes_$c->timestamp",
+			'Backed up local themes.'
+		);
+
+		$runner->add(
+			Util::get_rsync(
+				"$c->ssh:$c->themes/",
+				"$c->local_themes",
+				true,
+				true,
+				"$c->excludes"
+			),
+			"Pulled the '$c->env' themes locally."
+		);
+
+
+		$runner->run();
+	}
+
+	/** Pulls the plugins from the server. */
+	private static function pull_plugins() {
+
+		$c = self::$config;
+
+		$runner = self::$runner;
+
+		/** TODO Finalize safe mode. */
+		$runner->add(
+			isset( $c->safe_mode ),
+			"cp -rf $c->local_plugins $c->bk_path/plugins_$c->timestamp",
+			'Backed up local plugins.'
+		);
+
+		$runner->add(
+			Util::get_rsync(
+				"$c->ssh:$c->plugins/",
+				"$c->local_plugins",
+				true,
+				true,
+				"$c->excludes"
+			),
+			"Pulled the '$c->env' plugins locally."
 		);
 
 
@@ -710,8 +836,21 @@ class WP_Deploy_Command extends WP_CLI_Command {
 					"cd {$uploads_dir['basedir']}; pwd -P;"
 				) );
 			} ),
+			'local_themes' => call_user_func( function() {
+				$themes_dir = get_theme_root();
+				return untrailingslashit( Runner::get_result(
+					"cd {$themes_dir}; pwd -P;"
+				) );
+			} ),
+			'local_plugins' => call_user_func( function() {
+				$plugins_dir = WP_PLUGIN_DIR; // TODO: get the plugin directory in a better manner
+				return untrailingslashit( Runner::get_result(
+					"cd {$plugins_dir}; pwd -P;"
+				) );
+			} ),
 			'siteurl' => untrailingslashit( Util::trim_url(
-				get_option( 'siteurl' )
+				get_option( 'siteurl' ),
+				true
 			) ),
 			'object' => (object) array_map( 'untrailingslashit', $constants )
 		);

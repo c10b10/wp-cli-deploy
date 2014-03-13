@@ -11,16 +11,17 @@ The constants should be prefixed with the environment handle which you will use 
 <?php
 define( 'DEV_URL', 'the-remote-website-url.com' );
 define( 'DEV_WP_PATH', '/path/to/the/wp/dir/on/the/server' );
-define( 'DEV_HOST', 'ssh_hosr' );
+define( 'DEV_HOST', 'ssh_host' );
 define( 'DEV_USER', 'ssh_user' );
 define( 'DEV_PATH', '/path/to/a/writable/dir/on/the/server' );
 define( 'DEV_UPLOADS_PATH', '/path/to/the/remote/uploads/directory' );
+define( 'DEV_THEMES_PATH', '/path/to/the/remote/themes/directory' );
+define( 'DEV_PLUGINS_PATH', '/path/to/the/remote/plugins/directory' );
 define( 'DEV_DB_HOST', 'the_remote_db_host' );
 define( 'DEV_DB_NAME', 'the_remote_db_name' );
 define( 'DEV_DB_USER', 'the_remote_db_user' );
 define( 'DEV_DB_PASSWORD', 'the_remote_db_password' );
-define( 'DEV_POST_HOOK', 'echo "something to be executed when the command
-finishes"' );
+define( 'DEV_POST_HOOK', 'echo "something to be executed when the command finishes"' );
 ```
 
 => `wp deploy push dev ...`
@@ -38,6 +39,9 @@ __Examples__
 
     # Pull both the production database and uploads
     wp deploy pull production --what=db && wp deploy pull production --what=uploads
+
+    # Pull both the production themes and plugins
+    wp deploy pull production --what=themes && wp deploy pull production --what=plugins
 
     # Dump the local db with the siteurl replaced
     wp deploy dump andrew
@@ -105,6 +109,14 @@ database on the server:
 * __`wp deploy push %%env%% --what=uploads`__: As in the `push` command's case, in
 order to pull the remote server uploads, we need their path on the server.
     * `%%ENV%%_UPLOADS_PATH`
+
+* __`wp deploy push %%env%% --what=themes`__: As in the `push` command's case, in
+order to pull the remote server themes, we need their path on the server.
+    * `%%ENV%%_THEMES_PATH`
+
+* __`wp deploy push %%env%% --what=plugins`__: As in the `push` command's case, in
+order to pull the remote server plugins, we need their path on the server.
+    * `%%ENV%%_PLUGINS_PATH`
 
 * __`wp dump %%env%%`__: This subcommand only requires the path to the target
 WordPress path and its URL.
