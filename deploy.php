@@ -7,9 +7,9 @@ use \WP_Deploy_Command\Command_Runner as Runner;
 
 
 /**
- * __Current Version__: 1.0.0
+ * __Current Version__: 1.1.0-beta
  *
- * Deploys the local WordPress database or uploads directory.
+ * Deploys the local WordPress database or the uploads, plugins, or themes directories.
  *
  * The tool requires defining a set of constants in your wp-config.php file.
  * The constants should be prefixed with the environment handle which you will use as the first paramater for your desired subcommand. An example configuration for a "dev" environment:
@@ -152,10 +152,10 @@ use \WP_Deploy_Command\Command_Runner as Runner;
 class WP_Deploy_Command extends WP_CLI_Command {
 
 	/**
-	 * TODO:
-	 * Post push
+	 * TODO 1.1.0:
 	 * Update paths in messages to be relative to wordpress dir.
 	 * Fix the missing path directory at push issue.
+	 * Update doc.
 	 */
 
 	/** The config holder. */
@@ -280,8 +280,9 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		WP_CLI::line( 'WP-Cli Deploy Command: https://github.com/c10b10/wp-cli-deploy' );
 		WP_CLI::line( 'Supported subcommands: push, pull, dump' );
-		WP_CLI::line( 'Version: 1.0.0' );
+		WP_CLI::line( 'Version: 1.1.0-alpha' );
 		WP_CLI::line( 'Author: Alex Ciobica / @ciobi' );
+		WP_CLI::line( 'GitHub Contributor List: terminalpixel' );
 		WP_CLI::line( 'Run "wp help deploy" for the documentation' );
 	}
 

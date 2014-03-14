@@ -1,6 +1,6 @@
 ## WP-Cli Deploy
 
-__Current Version__: 1.0.0
+__Current Version__: 1.0.0 (stable), 1.1.0-beta (in dev)
 
 Deploys the local WordPress database or uploads directory.
 
@@ -165,4 +165,5 @@ define( 'DEV_POST_HOOK', $command );
 
 __Credits__
 
-https://github.com/demental/wp-deploy-flow for inspiration.
+* Contributors: [terminalpixel](https://github.com/terminalpixel)
+* https://github.com/demental/wp-deploy-flow for inspiration.
