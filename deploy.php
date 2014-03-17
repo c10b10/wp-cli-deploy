@@ -431,9 +431,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		/** Removing the dump file after upload. */
 		$runner->add( "rm -f $dump_file" );
 
+   		$password_in_quotes = '"' . $c->db_password . '"';
 		$runner->add(
 			"ssh $c->ssh 'cd $c->path;"
-			. " mysql --user=$c->db_user --password=$c->db_password --host=$c->db_host"
+			. " mysql --user=$c->db_user --password=$password_in_quotes --host=$c->db_host"
 			. " $c->db_name < $server_file'",
 			'Deployed the database on server.',
 			'Failed deploying the db on server.'
@@ -529,9 +530,10 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner = self::$runner;
 
+   		$password_in_quotes = '"' . $c->db_password . '"';
 		$runner->add(
 			"ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
-			. " mysqldump --user=$c->db_user --password=$c->db_password --host=$c->db_host"
+			. " mysqldump --user=$c->db_user --password=$password_in_quotes --host=$c->db_host"
 			. " --add-drop-table $c->db_name > $server_file'",
 			"Dumped the remote database to '$c->path/$server_file' on the server.",
 			'Failed dumping the remote database.'
