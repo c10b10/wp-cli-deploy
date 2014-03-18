@@ -433,7 +433,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner->add(
 			"ssh $c->ssh 'cd $c->path;"
-			. " mysql --user=$c->db_user --password=\"$db_password\" --host=$c->db_host"
+			. " mysql --user=$c->db_user --password=\"$c->db_password\" --host=$c->db_host"
 			. " $c->db_name < $server_file'",
 			'Deployed the database on server.',
 			'Failed deploying the db on server.'
