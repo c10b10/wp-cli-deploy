@@ -1,4 +1,4 @@
-## WP-Cli Deploy [![Bitdeli Badge](https://d2weczhvl823v0.cloudfront.net/c10b10/wp-cli-deploy/trend.png)](https://bitdeli.com/free "Bitdeli Badge")
+## WP-Cli Deploy 
 
 __Current Version__: 1.0.0 (stable), 1.1.0-beta (in dev)
 
