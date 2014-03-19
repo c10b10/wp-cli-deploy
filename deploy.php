@@ -20,6 +20,7 @@ use \WP_Deploy_Command\Command_Runner as Runner;
  * define( 'DEV_WP_PATH', '/path/to/the/wp/dir/on/the/server' );
  * define( 'DEV_HOST', 'ssh_hosr' );
  * define( 'DEV_USER', 'ssh_user' );
+ * define( 'DEV_PORT', 'ssh_port' );
  * define( 'DEV_PATH', '/path/to/a/writable/dir/on/the/server' );
  * define( 'DEV_UPLOADS_PATH', '/path/to/the/remote/uploads/directory' );
  * define( 'DEV_DB_HOST', 'the_remote_db_host' );
@@ -220,6 +221,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				'url'
 			),
 			'optional' => array(
+				'port',
 				'post_hook',
 				'excludes'
 			)
@@ -247,6 +249,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'db_password' => '%%db_password%%',
 
 			/** Optional */
+			'port' => '%%port%%',
 			'post_hook' => '%%post_hook%%',
 			'safe_mode' => '%%safe_mode%%', /** TODO */
 			'excludes' => '%%excludes%%',
@@ -422,7 +425,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				$dump_file,
-				"$c->ssh:$c->path/$server_file"
+				"$c->ssh:$c->path/$server_file",
+				"$c->port"
 			),
 			"Uploaded the database file to '$c->path/$server_file' on the server.",
 			'Failed to upload the database to the server'
@@ -432,7 +436,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add( "rm -f $dump_file" );
 
 		$runner->add(
-			"ssh $c->ssh 'cd $c->path;"
+			"ssh $c->ssh -p $c->port 'cd $c->path;"
 			. " mysql --user=$c->db_user --password=\"$c->db_password\" --host=$c->db_host"
 			. " $c->db_name < $server_file'",
 			'Deployed the database on server.',
@@ -457,6 +461,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_uploads/",
 				"$c->ssh:$path",
+				"$c->port",
 				true,
 				true,
 				$c->excludes
@@ -483,6 +488,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_themes/",
 				"$c->ssh:$path",
+				"$c->port",
 				true,
 				true,
 				"$c->excludes"
@@ -509,6 +515,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_plugins/",
 				"$c->ssh:$path",
+				"$c->port",
 				true,
 				true,
 				"$c->excludes"
@@ -530,7 +537,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner = self::$runner;
 
 		$runner->add(
-			"ssh $c->ssh 'mkdir -p $c->path; cd $c->path;"
+			"ssh $c->ssh -p $c->port 'mkdir -p $c->path; cd $c->path;"
 			. " mysqldump --user=$c->db_user --password=\"$db_password\" --host=$c->db_host"
 			. " --add-drop-table $c->db_name > $server_file'",
 			"Dumped the remote database to '$c->path/$server_file' on the server.",
@@ -541,13 +548,14 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				"$c->ssh:$c->path/$server_file",
 				"$c->wd/$server_file",
+				"$c->port",
 				false, false // No delete or compression
 			),
 			"Copied the database from the server to '$c->wd/$server_file'."
 		);
 
 		$runner->add(
-			"ssh $c->ssh 'cd $c->path; rm -f $server_file'",
+			"ssh $c->ssh -p $c->port 'cd $c->path; rm -f $server_file'",
 			'Deleted the server dump.'
 		);
 
@@ -596,6 +604,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				"$c->ssh:$c->uploads/",
 				"$c->local_uploads",
+				"$c->port",
 				true,
 				true,
 				"$c->excludes"
@@ -625,6 +634,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				"$c->ssh:$c->themes/",
 				"$c->local_themes",
+				"$c->port",
 				true,
 				true,
 				"$c->excludes"
@@ -654,6 +664,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				"$c->ssh:$c->plugins/",
 				"$c->local_plugins",
+				"$c->port",
 				true,
 				true,
 				"$c->excludes"
@@ -866,6 +877,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		if ( isset( $constants['post_hook'] ) ) {
 			$config['post_hook'] = Util::unplaceholdit( $config['post_hook'], array_merge( $config, $data ) );
+		}
+
+		if ( isset( $constants['port'] ) ) {
+			$config['port'] = $constants['port'];
+		} else {
+			$config['port'] = '22';
 		}
 
 		/** Remove unset config items (constants). */
