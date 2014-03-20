@@ -13,6 +13,7 @@ define( 'DEV_URL', 'the-remote-website-url.com' );
 define( 'DEV_WP_PATH', '/path/to/the/wp/dir/on/the/server' );
 define( 'DEV_HOST', 'ssh_host' );
 define( 'DEV_USER', 'ssh_user' );
+define( 'DEV_PORT', '22' );
 define( 'DEV_PATH', '/path/to/a/writable/dir/on/the/server' );
 define( 'DEV_UPLOADS_PATH', '/path/to/the/remote/uploads/directory' );
 define( 'DEV_THEMES_PATH', '/path/to/the/remote/themes/directory' );
