@@ -285,7 +285,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		WP_CLI::line( 'Supported subcommands: push, pull, dump' );
 		WP_CLI::line( 'Version: 1.1.0-alpha' );
 		WP_CLI::line( 'Author: Alex Ciobica / @ciobi' );
-		WP_CLI::line( 'GitHub Contributor List: terminalpixel' );
 		WP_CLI::line( 'Run "wp help deploy" for the documentation' );
 	}
 
@@ -603,11 +602,11 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				"$c->ssh:$c->uploads/",
-				"$c->local_uploads",
-				"$c->port",
+				$c->local_uploads,
+				$c->port,
 				true,
 				true,
-				"$c->excludes"
+				$c->excludes
 			),
 			"Pulled the '$c->env' uploads locally."
 		);
@@ -633,11 +632,11 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				"$c->ssh:$c->themes/",
-				"$c->local_themes",
-				"$c->port",
+				$c->local_themes,
+				$c->port,
 				true,
 				true,
-				"$c->excludes"
+				$c->excludes
 			),
 			"Pulled the '$c->env' themes locally."
 		);
@@ -663,11 +662,11 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->add(
 			Util::get_rsync(
 				"$c->ssh:$c->plugins/",
-				"$c->local_plugins",
-				"$c->port",
+				$c->local_plugins,
+				$c->port,
 				true,
 				true,
-				"$c->excludes"
+				$c->excludes
 			),
 			"Pulled the '$c->env' plugins locally."
 		);
@@ -879,11 +878,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			$config['post_hook'] = Util::unplaceholdit( $config['post_hook'], array_merge( $config, $data ) );
 		}
 
-		if ( isset( $constants['port'] ) ) {
-			$config['port'] = $constants['port'];
-		} else {
-			$config['port'] = '22';
-		}
+		$config['port'] = isset( $contsnts['port'] ) ? $constants['port'] : '22';
 
 		/** Remove unset config items (constants). */
 		$config = array_filter( $config, function ( $item ) {
