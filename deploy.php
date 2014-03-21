@@ -537,7 +537,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner->add(
 			"ssh $c->ssh -p $c->port 'mkdir -p $c->path; cd $c->path;"
-			. " mysqldump --user=$c->db_user --password=\"$db_password\" --host=$c->db_host"
+			. " mysqldump --user=$c->db_user --password=\"$c->db_password\" --host=$c->db_host"
 			. " --add-drop-table $c->db_name > $server_file'",
 			"Dumped the remote database to '$c->path/$server_file' on the server.",
 			'Failed dumping the remote database.'
