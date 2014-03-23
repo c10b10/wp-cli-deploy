@@ -425,7 +425,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				$dump_file,
 				"$c->ssh:$c->path/$server_file",
-				"$c->port"
+				$c->port
 			),
 			"Uploaded the database file to '$c->path/$server_file' on the server.",
 			'Failed to upload the database to the server'
@@ -460,7 +460,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_uploads/",
 				"$c->ssh:$path",
-				"$c->port",
+				$c->port,
 				true,
 				true,
 				$c->excludes
@@ -487,7 +487,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_themes/",
 				"$c->ssh:$path",
-				"$c->port",
+				$c->port,
 				true,
 				true,
 				"$c->excludes"
@@ -514,7 +514,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				// When pushing safe, we push the dir, hence no trailing slash
 				"$c->local_plugins/",
 				"$c->ssh:$path",
-				"$c->port",
+				$c->port,
 				true,
 				true,
 				"$c->excludes"
@@ -547,7 +547,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			Util::get_rsync(
 				"$c->ssh:$c->path/$server_file",
 				"$c->wd/$server_file",
-				"$c->port",
+				$c->port,
 				false, false // No delete or compression
 			),
 			"Copied the database from the server to '$c->wd/$server_file'."
@@ -670,7 +670,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			),
 			"Pulled the '$c->env' plugins locally."
 		);
-
 
 		$runner->run();
 	}
@@ -878,7 +877,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			$config['post_hook'] = Util::unplaceholdit( $config['post_hook'], array_merge( $config, $data ) );
 		}
 
-		$config['port'] = isset( $contsnts['port'] ) ? $constants['port'] : '22';
+		$config['port'] = isset( $constants['port'] ) ? $constants['port'] : '22';
+
 
 		/** Remove unset config items (constants). */
 		$config = array_filter( $config, function ( $item ) {
