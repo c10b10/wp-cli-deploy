@@ -837,6 +837,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 			'env' => self::$env,
 			'command' => $command,
 			'what' => $what,
+			'excludes' => ( isset( $constants['excludes'] ) && is_string( $constants['excludes'] ) ? $constants['excludes'] : false ),
+			'port' => ( isset( $constants['port'] ) ? $constants['port'] : '22' ),
 			'hash' => Util::get_hash(),
 			'abspath' => untrailingslashit( ABSPATH ),
 			'pretty_date' => date( 'Y_m_d-H_i' ),
@@ -864,12 +866,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				get_option( 'siteurl' ),
 				true
 			) ),
-			'object' => (object) array_map( 'untrailingslashit', $constants )
+			'object' => (object) array_map( 'untrailingslashit', $constants ),
 		);
 
 		foreach ( $config as &$item ) {
 			$item = Util::unplaceholdit( $item, array_merge(
-				/** This esures we can have dependecies. */
+				/** This ensures we can have dependecies. */
 				$config,
 				$data
 			) );
@@ -878,10 +880,6 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		if ( isset( $constants['post_hook'] ) ) {
 			$config['post_hook'] = Util::unplaceholdit( $config['post_hook'], array_merge( $config, $data ) );
 		}
-
-		$config['port'] = isset( $constants['port'] ) ? $constants['port'] : '22';
-
-		/** TODO fix excludes! */
 
 		/** Remove unset config items (constants). */
 		$config = array_filter( $config, function ( $item ) {

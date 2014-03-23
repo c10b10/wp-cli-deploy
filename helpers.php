@@ -3,7 +3,7 @@ namespace WP_Deploy_Command;
 
 class Helpers {
 
-	static function get_rsync( $source, $dest, $port, $delete = true, $compress = true, $user_excludes = '' ) {
+	static function get_rsync( $source, $dest, $port, $delete = true, $compress = true, $user_excludes = false ) {
 
 		$exclude = array(
 			'.git',
@@ -13,7 +13,7 @@ class Helpers {
 			'.sass-cache'
 		);
 
-		$user_excludes = explode( ':', $user_excludes );
+		$user_excludes = $user_excludes ? explode( ':', (string) $user_excludes ) : array();
 
 		$exclude = array_merge( $exclude, $user_excludes );
 
