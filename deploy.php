@@ -157,6 +157,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 * Update paths in messages to be relative to wordpress dir.
 	 * Fix the missing path directory at push issue.
 	 * Update doc.
+	 * Add dry run
+	 * Test excludes. Need to be separated by :
 	 */
 
 	/** The config holder. */
@@ -446,7 +448,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	}
 
 	/** Pushes the uploads to the server. */
-	private function push_uploads( $args = array() ) {
+	private function push_uploads() {
 
 		$c = self::$config;
 
@@ -473,7 +475,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	}
 
 	/** Pushes the themes to the server. */
-	private function push_themes( $args = array() ) {
+	private function push_themes() {
 
 		$c = self::$config;
 
@@ -500,7 +502,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	}
 
 	/** Pushes the plugins to the server. */
-	private function push_plugins( $args = array() ) {
+	private function push_plugins() {
 
 		$c = self::$config;
 
@@ -879,6 +881,7 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$config['port'] = isset( $constants['port'] ) ? $constants['port'] : '22';
 
+		/** TODO fix excludes! */
 
 		/** Remove unset config items (constants). */
 		$config = array_filter( $config, function ( $item ) {
