@@ -80,7 +80,7 @@ class Helpers {
 
 		/** Remove www. */
 		$url_parts = parse_url( $url );
-		$domain = preg_replace( '/^www\./', '', $url_parts['host'] );
+		$domain = preg_replace( '/^www\./', '', $url_parts['host'] ) . ( ! empty( $url_parts['port'] ) ? ':' . $url_parts['port'] : '' );
 
 		/** Add directory path if needed **/
 		if ( $path && $url_parts['path'] )
