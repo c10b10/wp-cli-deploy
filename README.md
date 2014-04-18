@@ -5,7 +5,7 @@ __Current Version__: 1.0.0 (stable), 1.1.0-beta (in dev)
 Deploys the local WordPress database or uploads directory.
 
 The tool requires defining a set of constants in your wp-config.php file.
-The constants should be prefixed with the environment handle which you will use as the first paramater for your desired subcommand. An example configuration for a "dev" environment:
+The constants should be prefixed with the environment handle which you will use as the first parameter for your desired subcommand. An example configuration for a "dev" environment:
 
 ```php
 <?php
@@ -31,7 +31,7 @@ Not all commands / subcommands require all constants to be defined. To test what
 a subcommand requires, execute it with a non-existing environment handle. e.g.
 `wp deploy dump johndoe`.
 
-You can define as many constant groups as deployment eviroments you wish to have.
+You can define as many constant groups as deployment enviroments you wish to have.
 
 __Examples__
 
