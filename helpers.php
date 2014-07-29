@@ -10,7 +10,7 @@ class Helpers {
 			'cache',
 			'.DS_Store',
 			'thumbs.db',
-			'.sass-cache'
+			'.sass-cache',
 		);
 
 		$user_excludes = $user_excludes ? explode( ':', (string) $user_excludes ) : array();

@@ -198,7 +198,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				),
 				'uploads' => array( 'uploads_path' ),
 				'themes' => array( 'themes_path' ),
-				'plugins' => array( 'plugins_path' )
+				'plugins' => array( 'plugins_path' ),
+				'wp' => array( 'wp_path' ),
 			),
 			'pull' => array(
 				'global' => array(
@@ -216,7 +217,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 				),
 				'uploads' => array( 'uploads_path' ),
 				'themes' => array( 'themes_path' ),
-				'plugins' => array( 'plugins_path' )
+				'plugins' => array( 'plugins_path' ),
+				'wp' => array( 'wp_path' ),
 			),
 			'dump' => array(
 				'wp_path',
@@ -318,14 +320,44 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 */
 	public function push( $args, $assoc_args ) {
 
-		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+		$c = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( isset( $args->error ) ) {
-			WP_Cli::line( $args->error );
+		if ( isset( $c->error ) ) {
+			WP_Cli::line( $c->error );
 			return false;
 		}
 
-		call_user_func( __CLASS__ . "::push_" . self::$config->what );
+		/** TODO safe mode */
+		$args_factory = function( $from, $to, $label ) {
+			return function() use ( $from, $to, $label ) {
+				return array( $from, $to, $label );
+			};
+		};
+
+		$options = array(
+			// %%PUSH_FUNC%% => array( %%PUSH_ITEM%% => %%PUSH_FUNC_ARGS%% )
+			'db' => array( 'db' => array() ),
+			'files' => array(
+				'themes' => $args_factory( "$c->local_themes/", $c->themes, 'themes' ),
+				'plugins' => $args_factory( "$c->local_plugins/", $c->plugins, 'plugins' ),
+				'uploads' => $args_factory( "$c->local_uploads/", $c->uploads, 'uploads directory' ),
+				/**
+				 * TODO: Think about this more. wp-config and other files
+				 * could be overwritten. It should have a safety mechanism.
+				 * Confirmation probably. 
+				 */
+				/* 'wp' => $args_factory( "$c->abspath/", $c->wp, 'WordPress instance' ), */
+			)
+		);
+
+		foreach( $options as $func => $what ) {
+			foreach( $what as $item => $args ) {
+				if ( $item == $c->what ) {
+					$args = is_callable( $args ) ? call_user_func( $args ) : $args;
+					call_user_func_array( __CLASS__ . "::push_" . $func, (array) $args );
+				}
+			}
+		}
 
 		self::run_post_hook();
 
@@ -360,14 +392,43 @@ class WP_Deploy_Command extends WP_CLI_Command {
 	 */
 	public function pull( $args, $assoc_args ) {
 
-		$args = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
+		$c = self::sanitize_args( __FUNCTION__, $args, $assoc_args );
 
-		if ( isset( $args->error ) ) {
-			WP_Cli::line( $args->error );
+		if ( isset( $c->error ) ) {
+			WP_Cli::line( $c->error );
 			return false;
 		}
 
-		call_user_func( __CLASS__ . "::pull_" . self::$config->what );
+		$args_factory = function( $from, $to, $label ) {
+			return function() use ( $from, $to, $label ) {
+				return array( $from, $to, $label );
+			};
+		};
+
+		$options = array(
+			// %%PULL_FUNC%% => array( %%PULL_ITEM%% => %%PULL_FUNC_ARGS%% )
+			'db' => array( 'db' => array() ),
+			'files' => array(
+				'themes' => $args_factory( $c->themes, "$c->local_themes", 'themes' ),
+				'plugins' => $args_factory( $c->plugins, "$c->local_plugins", 'plugins' ),
+				'uploads' => $args_factory( $c->uploads, "$c->local_uploads", 'uploads directory' ),
+				/**
+				 * TODO: Think about this more. wp-config and other files
+				 * could be overwritten. It should have a safety mechanism.
+				 * Confirmation probably. 
+				 */
+				/* 'wp' => $args_factory( $c->wp, "$c->abspath", 'WordPress instance' ), */
+			)
+		);
+
+		foreach( $options as $func => $what ) {
+			foreach( $what as $item => $args ) {
+				if ( $item == $c->what ) {
+					$args = is_callable( $args ) ? call_user_func( $args ) : $args;
+					call_user_func_array( __CLASS__ . "::pull_" . $func, (array) $args );
+				}
+			}
+		}
 
 		self::run_post_hook();
 
@@ -447,82 +508,27 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->run();
 	}
 
-	/** Pushes the uploads to the server. */
-	private function push_uploads() {
-
+	/** Helper function that pushes files to the remote server using rsync. */
+	private function push_files( $from, $to, $label ) {
 		$c = self::$config;
 
 		$runner = self::$runner;
 
-		/** TODO safe mode */
-		$path = isset( $c->safe_mode ) ? $c->path : $c->uploads;
+		/** TODO Safe mode */
+		$to = isset( $c->safe_mode ) ? $c->path : $to;
 
 		$runner->add(
 			Util::get_rsync(
 				// When pushing safe, we push the dir, hence no trailing slash
-				"$c->local_uploads/",
-				"$c->ssh:$path",
+				$from,
+				"$c->ssh:$to",
 				$c->port,
 				true,
 				true,
 				$c->excludes
 			),
-			"Synced local uploads to '$path' on '$c->host'.",
-			'Failed to upload the database to the server'
-		);
-
-		$runner->run();
-	}
-
-	/** Pushes the themes to the server. */
-	private function push_themes() {
-
-		$c = self::$config;
-
-		$runner = self::$runner;
-
-		/** TODO safe mode */
-		$path = isset( $c->safe_mode ) ? $c->path : $c->themes;
-
-		$runner->add(
-			Util::get_rsync(
-				// When pushing safe, we push the dir, hence no trailing slash
-				"$c->local_themes/",
-				"$c->ssh:$path",
-				$c->port,
-				true,
-				true,
-				"$c->excludes"
-			),
-			"Synced local themes to '$path' on '$c->host'.",
-			'Failed to upload the database to the server'
-		);
-
-		$runner->run();
-	}
-
-	/** Pushes the plugins to the server. */
-	private function push_plugins() {
-
-		$c = self::$config;
-
-		$runner = self::$runner;
-
-		/** TODO safe mode */
-		$path = isset( $c->safe_mode ) ? $c->path : $c->plugins;
-
-		$runner->add(
-			Util::get_rsync(
-				// When pushing safe, we push the dir, hence no trailing slash
-				"$c->local_plugins/",
-				"$c->ssh:$path",
-				$c->port,
-				true,
-				true,
-				"$c->excludes"
-			),
-			"Synced local plugins to '$path' on '$c->host'.",
-			'Failed to upload the database to the server'
+			"Synced local $label to '$to' on '$c->host'.",
+			"Failed to upload the local $label to the server"
 		);
 
 		$runner->run();
@@ -587,90 +593,35 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$runner->run();
 	}
 
-	/** Pulls the uploads from the server. */
-	private static function pull_uploads() {
+	/** Pulls the files from the server. */
+	private static function pull_files( $from, $to, $label ) {
 
 		$c = self::$config;
 
 		$runner = self::$runner;
 
-		/** TODO Finalize safe mode. */
+		$from = trailingslashit( $from );
+		$to = untrailingslashit( $to );
+
+		/** TODO Finalize safe mode. Rsync deletion should no happen. */
 		$runner->add(
 			isset( $c->safe_mode ),
-			"cp -rf $c->local_uploads $c->bk_path/uploads_$c->timestamp",
-			'Backed up local uploads.'
+			"cp -rf $to $c->bk_path/"
+			. dirname( trailingslashit( $to ) )
+			. "_$c->timestamp",
+			"Backed up local $label."
 		);
 
 		$runner->add(
 			Util::get_rsync(
-				"$c->ssh:$c->uploads/",
-				$c->local_uploads,
+				trailingslashit( "$c->ssh:$from" ),
+				untrailingslashit( $to ),
 				$c->port,
 				true,
 				true,
 				$c->excludes
 			),
-			"Pulled the '$c->env' uploads locally."
-		);
-
-
-		$runner->run();
-	}
-
-	/** Pulls the themes from the server. */
-	private static function pull_themes() {
-
-		$c = self::$config;
-
-		$runner = self::$runner;
-
-		/** TODO Finalize safe mode. */
-		$runner->add(
-			isset( $c->safe_mode ),
-			"cp -rf $c->local_themes $c->bk_path/themes_$c->timestamp",
-			'Backed up local themes.'
-		);
-
-		$runner->add(
-			Util::get_rsync(
-				"$c->ssh:$c->themes/",
-				$c->local_themes,
-				$c->port,
-				true,
-				true,
-				$c->excludes
-			),
-			"Pulled the '$c->env' themes locally."
-		);
-
-
-		$runner->run();
-	}
-
-	/** Pulls the plugins from the server. */
-	private static function pull_plugins() {
-
-		$c = self::$config;
-
-		$runner = self::$runner;
-
-		/** TODO Finalize safe mode. */
-		$runner->add(
-			isset( $c->safe_mode ),
-			"cp -rf $c->local_plugins $c->bk_path/plugins_$c->timestamp",
-			'Backed up local plugins.'
-		);
-
-		$runner->add(
-			Util::get_rsync(
-				"$c->ssh:$c->plugins/",
-				$c->local_plugins,
-				$c->port,
-				true,
-				true,
-				$c->excludes
-			),
-			"Pulled the '$c->env' plugins locally."
+			"Pulled the '$c->env' $label locally."
 		);
 
 		$runner->run();
@@ -682,8 +633,8 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		$c = self::$config;
 
 		$args = wp_parse_args( $args, array(
+			'wd' => $c->wd,
 			'name' => "{$c->env}_{$c->timestamp}",
-			'wd' => $c->wd
 		) );
 		$path = "{$args['wd']}/{$args['name']}.sql";
 
@@ -735,12 +686,12 @@ class WP_Deploy_Command extends WP_CLI_Command {
 		self::$env = $args[0];
 
 		/** If what is available, it needs to refer to an existing method. */
-		$what = '';
+		$what = array( 'db', 'themes', 'plugins', 'uploads' );
 		if ( isset( $assoc_args['what'] ) ) {
-			$what = $assoc_args['what'];
-			if ( ! method_exists( __CLASS__, "{$command}_{$what}" ) ) {
-				WP_Cli::error( "Using unknown '$what' parameter for --what argument." );
+			if ( ! in_array( $assoc_args['what'], $what ) ) {
+				WP_Cli::error( "Using unknown '{$assoc_args['what']}' parameter for --what argument." );
 			}
+			$what = $assoc_args['what'];
 		}
 
 		/**
