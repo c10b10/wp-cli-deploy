@@ -575,13 +575,13 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner->add(
 			( $c->siteurl != $c->url ),
-			"wp search-replace --network $c->url $c->siteurl",
+			"wp search-replace --all-tables $c->url $c->siteurl",
 			"Replaced '$c->url' with '$c->siteurl' on the imported database."
 		);
 
 		$runner->add(
 			( $c->abspath != $c->wp ),
-			"wp search-replace --network $c->wp $c->abspath",
+			"wp search-replace --all-tables $c->wp $c->abspath",
 			"Replaced '$c->wp' with '$c->abspath' on local database."
 		);
 
@@ -698,13 +698,13 @@ class WP_Deploy_Command extends WP_CLI_Command {
 
 		$runner->add(
 			( $c->siteurl != $c->url ),
-			"wp search-replace --network $c->siteurl $c->url",
+			"wp search-replace --all-tables $c->siteurl $c->url",
 			"Replaced '$c->siteurl' with '$c->url' in local database."
 		);
 
 		$runner->add(
 			( $c->abspath != $c->wp ),
-			"wp search-replace --network $c->abspath $c->wp",
+			"wp search-replace --all-tables $c->abspath $c->wp",
 			"Replaced '$c->abspath' with with '$c->wp' in local database."
 		);
 
