@@ -1,7 +1,7 @@
 ## Project maintainers welcomed
 *April, 2016*
 
-It just so happened that in the last year my development interests shifted away from WordPress. As such, I ended up not writing a single line of PHP in over twelve months. 
+It just so happened that in the last year, my development interests shifted away from WordPress. As such, I ended up not writing a single line of PHP in over twelve months. 
 
 I believe that the tools we build are good, only if we use them ourselves, and the reality is I don't use `wp-cli-deploy` anymore, so I decided to hand off maintenance of this project to someone else.
 
