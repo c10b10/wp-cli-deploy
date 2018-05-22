@@ -7,7 +7,7 @@ I believe that the tools we build are best when we use them ourselves, and the r
 
 If you’re interested in the gig, ping [me on Twitter](http://twitter.com/ciobi) and we can take it from there.
 
-## Update from new project maintainer
+### Update from new project maintainer
 *May, 2018*
 
 I look over this project thinking it would be something I could maintain, but I have recently been using different tools and have left wp-cli-deploy to gather dust. Sorry! I plan to incorporate the new tools into the plugin and bring it back up to speed at some point soon.
